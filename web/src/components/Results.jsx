@@ -70,11 +70,15 @@ function MatchCard({ id, q, m, thr }) {
       <div className="match">
         <figure className="match__img" style={{ margin: 0 }}>
           <img src={fileUrl(id, q.files.crop)} alt="scanned face" />
+          <span className="bracket bracket--tl" aria-hidden="true" /><span className="bracket bracket--tr" aria-hidden="true" />
+          <span className="bracket bracket--bl" aria-hidden="true" /><span className="bracket bracket--br" aria-hidden="true" />
           <figcaption>your scan</figcaption>
         </figure>
         <Meter value={Number(m.similarity)} threshold={thr} />
         <figure className="match__img" style={{ margin: 0 }}>
           <img src={fileUrl(id, m.image_file)} alt="image from the matched post" />
+          <span className="bracket bracket--tl" aria-hidden="true" /><span className="bracket bracket--tr" aria-hidden="true" />
+          <span className="bracket bracket--bl" aria-hidden="true" /><span className="bracket bracket--br" aria-hidden="true" />
           <figcaption>found post</figcaption>
         </figure>
       </div>

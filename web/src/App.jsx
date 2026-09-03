@@ -29,8 +29,15 @@ export default function App() {
     <div className={`app app--${view}`}>
       <header className="topbar">
         <a className="brand" href="#" onClick={(e) => { e.preventDefault(); go("landing"); }}>
-          <span className="brand__mark"><Icon name="face" /></span>
-          <span className="brand__name">facechain</span>
+          <span className="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M7 11V7h4M21 7h4v4M25 21v4h-4M11 25H7v-4" />
+              <circle cx="16" cy="14" r="4" />
+              <path d="M10 23c1.3-2.6 3.4-4 6-4s4.7 1.4 6 4" />
+            </svg>
+          </span>
+          <span className="brand__name">Veriface</span>
+          <span className="brand__sub">facechain</span>
         </a>
 
         <div className="seg" role="tablist" aria-label="Switch between overview and console">
