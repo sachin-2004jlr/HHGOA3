@@ -81,7 +81,8 @@ ABI + bytecode are committed in `contracts/build/`, so no Solidity toolchain is 
 ### 1. Install
 
 ```bash
-git clone <this repo> facechain && cd facechain
+git clone https://github.com/sachin-2004jlr/HHGOA3.git
+cd HHGOA3
 python -m venv .venv
 # Windows:  .venv\Scripts\activate        Linux/macOS:  source .venv/bin/activate
 pip install -r requirements.txt
