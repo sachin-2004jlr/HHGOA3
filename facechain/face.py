@@ -5,6 +5,7 @@ Both models come from the OpenCV Model Zoo and run on CPU with no extra deps.
 from __future__ import annotations
 
 import os
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -51,6 +52,7 @@ class FaceEngine:
 
     def __init__(self, det_threshold: float = 0.8):
         ensure_models()
+        self._lock = threading.Lock()  # OpenCV DNN nets are not safe for concurrent forward()
         self._det = cv2.FaceDetectorYN.create(
             str(config.YUNET_MODEL), "", (320, 320), det_threshold, 0.3, 5000
         )
@@ -115,9 +117,10 @@ class FaceEngine:
         return face
 
     def analyze(self, img: np.ndarray, max_faces: int = 5) -> tuple[np.ndarray, list[Face]]:
-        img, faces = self.detect(img)
-        for f in faces[:max_faces]:
-            self.embed(img, f)
+        with self._lock:
+            img, faces = self.detect(img)
+            for f in faces[:max_faces]:
+                self.embed(img, f)
         return img, faces[:max_faces]
 
     @staticmethod

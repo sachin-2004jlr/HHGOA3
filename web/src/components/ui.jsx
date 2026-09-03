@@ -1,0 +1,115 @@
+import { useEffect, useState } from "react";
+
+const PATHS = {
+  face: ["M12 13.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z", "M4.5 20.5c1.4-3.4 4.2-5.2 7.5-5.2s6.1 1.8 7.5 5.2"],
+  upload: ["M12 16V4", "m7 9 5-5 5 5", "M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"],
+  camera: ["M4 8h3l2-3h6l2 3h3v11H4z", "M12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"],
+  search: ["M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15Z", "m21 21-5.2-5.2"],
+  shield: ["M12 3 5 6v5c0 4.5 3 8.4 7 10 4-1.6 7-5.5 7-10V6z", "m9 12 2 2 4-4"],
+  chain: ["M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1", "M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"],
+  check: ["m5 12.5 4.5 4.5L19 7.5"],
+  x: ["M6 6l12 12", "M18 6 6 18"],
+  alert: ["M12 3 2 20h20z", "M12 10v4", "M12 17.5v.5"],
+  copy: ["M9 9h10v10H9z", "M5 15H4V4h11v1"],
+  external: ["M14 4h6v6", "M20 4 10 14", "M18 13v6H5V6h6"],
+  arrow: ["M5 12h14", "m13 6 6 6-6 6"],
+  chevron: ["m9 6 6 6-6 6"],
+  github: ["M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.2-3.4-1.2-.4-1.1-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5a3.9 3.9 0 0 1 1-2.7c-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.5 9.5 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7a3.9 3.9 0 0 1 1 2.7c0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z"],
+  history: ["M3 12a9 9 0 1 0 3-6.7", "M3 4v5h5", "M12 7v5l3 2"],
+  trash: ["M4 7h16", "M10 11v6", "M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3"],
+  refresh: ["M21 12a9 9 0 1 1-2.6-6.4", "M21 4v5h-5"],
+  clock: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z", "M12 7v5l3 2"],
+  image: ["M4 5h16v14H4z", "m4 16 5-5 4 4 3-3 4 4", "M15.5 9.5h.01"],
+  zap: ["M13 2 4 14h7l-1 8 9-12h-7z"],
+  hash: ["M5 9h14", "M5 15h14", "M10 3 8 21", "M16 3l-2 18"],
+  key: ["M14 10a4 4 0 1 0-4 4h1l1 1h2l1 1h2v2h2v-2l-3-3v-1a4 4 0 0 0-2-2Z"],
+  play: ["m7 5 12 7-12 7z"],
+  cpu: ["M7 7h10v10H7z", "M4 10h3", "M4 14h3", "M17 10h3", "M17 14h3", "M10 4v3", "M14 4v3", "M10 17v3", "M14 17v3"],
+  globe: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z", "M3 12h18", "M12 3a14 14 0 0 1 0 18", "M12 3a14 14 0 0 0 0 18"],
+  layers: ["m12 3 9 5-9 5-9-5z", "m3 13 9 5 9-5", "m3 17 9 5 9-5"],
+};
+
+export function Icon({ name, className }) {
+  const d = PATHS[name] || PATHS.alert;
+  const filled = name === "github";
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke={filled ? "none" : "currentColor"}
+      strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {d.map((p, i) => <path key={i} d={p} />)}
+    </svg>
+  );
+}
+
+export function Pill({ tone, icon, children, className = "" }) {
+  return (
+    <span className={`pill ${tone ? `pill--${tone}` : ""} ${className}`}>
+      {icon ? <Icon name={icon} /> : null}
+      {children}
+    </span>
+  );
+}
+
+const PLATFORM_TONE = { instagram: "amber", x: "indigo", facebook: "indigo", reddit: "amber", youtube: "red", tiktok: "indigo",
+  linkedin: "indigo", pinterest: "red", threads: "indigo", web: undefined };
+
+export function PlatformPill({ platform }) {
+  const p = platform || "web";
+  return <Pill tone={PLATFORM_TONE[p]} className="pill--plat">{p === "x" ? "X / Twitter" : p}</Pill>;
+}
+
+export function Hash({ value, prefix = true, label }) {
+  const [copied, setCopied] = useState(false);
+  const v = value ? (prefix && !value.startsWith("0x") ? "0x" + value : value) : "";
+  useEffect(() => { if (!copied) return; const t = setTimeout(() => setCopied(false), 1400); return () => clearTimeout(t); }, [copied]);
+  const copy = async () => { try { await navigator.clipboard.writeText(v); setCopied(true); } catch { /* ignore */ } };
+  return (
+    <span className={`hash ${copied ? "is-copied" : ""}`} title={v}>
+      <span className="hash__text">{v || "-"}</span>
+      <button type="button" onClick={copy} aria-label={`copy ${label || "value"}`}><Icon name={copied ? "check" : "copy"} /></button>
+    </span>
+  );
+}
+
+export function Meter({ value, threshold }) {
+  const pct = Math.max(0, Math.min(1, value));
+  const r = 60, c = 2 * Math.PI * r;
+  const pass = value >= threshold;
+  return (
+    <div className="meter">
+      <svg viewBox="0 0 148 148" role="img" aria-label={`similarity ${value.toFixed(3)}`}>
+        <circle className="meter__ring" cx="74" cy="74" r={r} />
+        <circle className="meter__val" cx="74" cy="74" r={r} strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
+          style={{ stroke: pass ? "var(--green)" : "var(--amber)" }} />
+        <text className="meter__num" x="74" y="78" textAnchor="middle">{value.toFixed(3)}</text>
+        <text className="meter__lbl" x="74" y="98" textAnchor="middle">COSINE</text>
+      </svg>
+      <p>{pass ? "same identity" : "below threshold"} (threshold {threshold})</p>
+    </div>
+  );
+}
+
+export function Alert({ tone = "red", icon = "alert", children }) {
+  return <div className={`alert alert--${tone}`}><Icon name={icon} /><div>{children}</div></div>;
+}
+
+export function Empty({ icon = "face", title, children }) {
+  return (
+    <div className="empty">
+      <div className="empty__icon"><Icon name={icon} /></div>
+      <h3>{title}</h3>
+      <p>{children}</p>
+    </div>
+  );
+}
+
+export function fmtTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d) ? iso : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+export function shortHash(h, n = 10) {
+  if (!h) return "";
+  const v = h.startsWith("0x") ? h : "0x" + h;
+  return v.length > 2 * n + 3 ? `${v.slice(0, n + 2)}…${v.slice(-n)}` : v;
+}

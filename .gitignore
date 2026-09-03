@@ -16,3 +16,8 @@ evidence/*
 !evidence/demo-*/
 *-tampered/
 samples/*_faces.jpg
+
+# web
+node_modules/
+web/dist/
+web/.vite/
