@@ -94,33 +94,45 @@ class SearchError(RuntimeError):
     pass
 
 
-def _serpapi_lens(image_url: str) -> tuple[list[Candidate], Optional[str], int]:
-    params = {"engine": "google_lens", "url": image_url, "api_key": config.SERPAPI_KEY,
-              "hl": "en", "country": "us"}
+def _serpapi_query(image_url: str, search_type: str) -> dict:
+    params = {"engine": "google_lens", "url": image_url, "type": search_type,
+              "api_key": config.SERPAPI_KEY, "hl": "en", "country": "us"}
     r = requests.get("https://serpapi.com/search.json", params=params, timeout=90)
     if r.status_code != 200:
         raise SearchError(f"SerpApi HTTP {r.status_code}: {r.text[:300]}")
     data = r.json()
     if data.get("error"):
         raise SearchError(f"SerpApi: {data['error']}")
+    return data
+
+
+def _serpapi_lens(image_url: str) -> tuple[list[Candidate], Optional[str], int]:
+    responses = [("visual", _serpapi_query(image_url, "all"))]
+    if config.LENS_EXACT_MATCHES:
+        try:
+            responses.append(("exact", _serpapi_query(image_url, "exact_matches")))
+        except SearchError as e:  # exact-match query is optional
+            print(f"[search] exact_matches query skipped: {e}")
 
     cands: list[Candidate] = []
-    for key in ("exact_matches", "visual_matches"):
-        for i, m in enumerate(data.get(key) or []):
-            link = m.get("link") or m.get("source_link")
-            if not link:
-                continue
-            cands.append(Candidate(
-                url=link, title=m.get("title", ""), source=m.get("source", ""),
-                image_url=m.get("image", ""), thumbnail_url=m.get("thumbnail", ""),
-                engine="serpapi/google_lens", position=m.get("position", i + 1),
-            ))
     name = None
-    kg = data.get("knowledge_graph")
-    if isinstance(kg, list) and kg:
-        name = kg[0].get("title")
-    elif isinstance(kg, dict):
-        name = kg.get("title")
+    for label, data in responses:
+        for key in ("exact_matches", "visual_matches"):
+            for i, m in enumerate(data.get(key) or []):
+                link = m.get("link") or m.get("source_link")
+                if not link:
+                    continue
+                cands.append(Candidate(
+                    url=link, title=m.get("title", ""), source=m.get("source", ""),
+                    image_url=m.get("image", ""), thumbnail_url=m.get("thumbnail", ""),
+                    engine=f"serpapi/google_lens/{key}", position=m.get("position", i + 1),
+                ))
+        kg = data.get("knowledge_graph")
+        if not name:
+            if isinstance(kg, list) and kg:
+                name = kg[0].get("title")
+            elif isinstance(kg, dict):
+                name = kg.get("title")
     return cands, name, len(cands)
 
 
