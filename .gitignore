@@ -1,0 +1,18 @@
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# secrets
+.env
+
+# large / generated
+facechain/models/*.onnx
+tools/
+.anvil/
+simchain.json
+evidence/*
+!evidence/.gitkeep
+!evidence/demo-*/
+*-tampered/
+samples/*_faces.jpg

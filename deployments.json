@@ -1,0 +1,12 @@
+{
+  "31337": {
+    "chain": "Anvil (local)",
+    "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "txHash": "0x70ca1d687c9824e92d60e1291c99c9f93dde5240627c7db185513daa8a5acd0a",
+    "block": 1,
+    "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "rpc": "http://127.0.0.1:8545",
+    "deployedAt": 1788459137,
+    "explorer": null
+  }
+}

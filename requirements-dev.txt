@@ -1,0 +1,2 @@
+-r requirements.txt
+py-solc-x>=2.0   # only needed to recompile contracts/FaceMatchRegistry.sol
