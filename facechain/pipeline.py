@@ -190,6 +190,7 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
         run_id=bundle.run_id, query=query_info, match=result["match"],
         search={"engine": sr.engine, "query_image_url": public_url, "query_image_host": host,
                 "entity_name": sr.entity_name, "candidates_total": len(candidates),
+                "lens_results": len(sr.candidates), "expanded": expanded, "social": social_n,
                 "candidates_verified": len(verified), "threshold": thr},
     )
     record_hash = bundle.write_record(record)
