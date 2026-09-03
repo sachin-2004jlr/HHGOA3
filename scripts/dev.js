@@ -13,13 +13,19 @@ const concurrently = require("concurrently");
 const ROOT = path.resolve(__dirname, "..");
 const isWin = process.platform === "win32";
 
-function portFree(port) {
+function bindable(port, host) {
   return new Promise((resolve) => {
     const srv = net.createServer();
     srv.once("error", () => resolve(false));
     srv.once("listening", () => srv.close(() => resolve(true)));
-    srv.listen(port, "127.0.0.1");
+    srv.listen(port, host);
   });
+}
+async function portFree(port) {
+  // Vite/uvicorn may listen on IPv4 or IPv6 loopback; a port is free only if both can be bound.
+  if (!(await bindable(port, "127.0.0.1"))) return false;
+  try { if (!(await bindable(port, "::1"))) return false; } catch (_) { /* no IPv6 */ }
+  return true;
 }
 async function pickPort(start, avoid = []) {
   for (let p = start; p < start + 200; p += 1) {
