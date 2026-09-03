@@ -67,6 +67,8 @@ class EvmChain:
             )
         self.chain_id = self.w3.eth.chain_id
         self.account = Account.from_key(private_key or config.PRIVATE_KEY)
+        if self.is_local:
+            self._ensure_local_funds()
         art = json.loads((artifact or config.CONTRACT_ARTIFACT).read_text(encoding="utf-8"))
         self.abi, self.bytecode = art["abi"], art["bytecode"]
         self.address = contract_address or config.CONTRACT_ADDRESS or self._saved_address()
@@ -83,6 +85,25 @@ class EvmChain:
     @property
     def is_local(self) -> bool:
         return self.chain_id in (31337, 1337) or "127.0.0.1" in self.rpc_url or "localhost" in self.rpc_url
+
+    def _ensure_local_funds(self) -> None:
+        """On a local dev chain (Anvil/Hardhat) make sure the signer can pay gas.
+
+        The signer may be a freshly generated testnet wallet with no balance here; dev
+        chains expose a cheat-code RPC to set balances, and if that is unavailable we
+        fall back to Anvil's well-known pre-funded account #0.
+        """
+        if self.w3.eth.get_balance(self.account.address) > Web3.to_wei(0.01, "ether"):
+            return
+        amount = hex(Web3.to_wei(100, "ether"))
+        for method in ("anvil_setBalance", "hardhat_setBalance"):
+            try:
+                self.w3.provider.make_request(method, [self.account.address, amount])
+                if self.w3.eth.get_balance(self.account.address) > 0:
+                    return
+            except Exception:  # noqa: BLE001
+                continue
+        self.account = Account.from_key(config.ANVIL_DEV_KEY)
 
     def explorer_tx(self, tx_hash: str) -> str | None:
         base = EXPLORERS.get(self.chain_id)

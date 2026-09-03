@@ -137,7 +137,8 @@ def _serpapi_lens(image_url: str) -> tuple[list[Candidate], Optional[str], int]:
 
 
 def _serper_lens(image_url: str) -> tuple[list[Candidate], Optional[str], int]:
-    r = requests.post("https://google.serper.dev/lens", json={"url": image_url},
+    r = requests.post("https://google.serper.dev/lens",
+                      json={"url": image_url, "num": config.LENS_NUM_RESULTS},
                       headers={"X-API-KEY": config.SERPER_API_KEY, "Content-Type": "application/json"},
                       timeout=90)
     if r.status_code != 200:
@@ -221,7 +222,8 @@ def guess_entity_name(titles: list[str]) -> Optional[str]:
     if not counter:
         return None
     best, n = counter.most_common(1)[0]
-    return best if n >= 3 else None
+    need = 2 if len(titles) < 6 else 3
+    return best if n >= need else None
 
 
 # ------------------------------------------------------------- expansion (DDG)

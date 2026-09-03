@@ -39,7 +39,7 @@ The same Solidity contract is used everywhere; only the RPC endpoint changes.
 
 | Backend | How | When to use |
 |---------|-----|-------------|
-| **Anvil (Foundry) local EVM** — *default* | `scripts/start_anvil` runs a real EVM node on `http://127.0.0.1:8545` (chain id 31337) with state persisted to `.anvil/state.json`, so records survive restarts. The contract is auto-deployed on first use. | Offline demo, no faucet needed. |
+| **Anvil (Foundry) local EVM** — *default* | `scripts/start_anvil` runs a real EVM node on `http://127.0.0.1:8545` (chain id 31337) with state persisted to `.anvil/state.json`, so records survive restarts. The contract is auto-deployed on first use and the signer is auto-funded. | Offline demo, no faucet needed. |
 | **Ethereum Sepolia testnet** (or any EVM chain) | Set `RPC_URL` to a Sepolia endpoint and `PRIVATE_KEY` to a funded test wallet, run `python -m facechain deploy` once. Receipts include Etherscan links. | Public, independently verifiable records. |
 | **`sim` — pure-Python chain** | `--chain sim` writes proof-of-work blocks to `simchain.json` and validates the hash links on every verify. No node, no dependencies. | Fallback when no EVM node is available. |
 
@@ -111,7 +111,26 @@ python -m facechain run --webcam
 Useful flags: `--min-similarity 0.30` (looser match), `--max-candidates 100`,
 `--no-expand` (Lens results only), `--chain sim` (no node needed), `--skip-chain`.
 
+Example output of a real run (input: `samples/elon_musk.jpg`, engine: Serper Google Lens):
+
+```
+STEP 2  engine=serper  raw results=9  unique pages=9  recognised entity=Elon Musk
+        +36 extra candidates from DuckDuckGo image search
+STEP 3  downloading + matching 45/45  (9 s)
+        +0.966  reddit    Bonjour, I accidentally did a "Roman" salute... r/rance
+        +0.944  youtube   Elon give us Tesla HW3 Update for FSD
+        +0.929  facebook  Top 5 richest people on Earth...
+        ...
+        MATCH  similarity=0.966  platform=reddit
+STEP 4  record_hash = sha256(canonical record.json)   image_hash = sha256(match_image.jpg)
+STEP 5  tx 0x...  block N  contract 0x5FbDB2315678afecb367f032d93F642f64180aa3  (Anvil)
+STEP 6  record FOUND on chain - every field OK -> VERIFIED
+```
+
 ### 4. Re-verify against the chain (any time later)
+
+Each run leaves a self-contained folder in `evidence/<run_id>/`. Verification recomputes the
+hashes from those files, so it works from a fresh clone as long as the chain still has the record.
 
 ```bash
 python -m facechain verify --evidence evidence/<run_id>
