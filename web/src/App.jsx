@@ -6,7 +6,7 @@ import { Icon } from "./components/ui.jsx";
 const REPO = "https://github.com/sachin-2004jlr/HHGOA3";
 
 function viewFromHash() {
-  return window.location.hash === "#console" ? "console" : "landing";
+  return window.location.hash.startsWith("#console") ? "console" : "landing";
 }
 
 export default function App() {

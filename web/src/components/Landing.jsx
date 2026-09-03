@@ -75,9 +75,9 @@ export default function Landing({ onStart }) {
             <img src="/hero.webp" alt="A smiling person with face-tracking landmarks, coordinate readouts and a mesh overlay" />
             <span className="bracket bracket--tl" aria-hidden="true" /><span className="bracket bracket--tr" aria-hidden="true" />
             <span className="bracket bracket--bl" aria-hidden="true" /><span className="bracket bracket--br" aria-hidden="true" />
-            <HudTag k="DET" v="YuNet · 5 landmarks" tone="cyan" side="left" style={{ left: "-6%", top: "22%" }} />
-            <HudTag k="EMB" v="SFace · 128-d · L2" tone="yellow" side="left" style={{ left: "-10%", top: "48%" }} />
-            <HudTag k="REG" v={chain?.contract ? shortHash(chain.contract, 6) : "FaceMatchRegistry"} tone="magenta" side="left" style={{ left: "-4%", top: "74%" }} />
+            <HudTag k="DET" v="YuNet · 5 landmarks" tone="cyan" side="left" style={{ left: "-16%", top: "14%" }} />
+            <HudTag k="EMB" v="SFace · 128-d · L2" tone="yellow" side="left" style={{ left: "-14%", top: "46%" }} />
+            <HudTag k="REG" v={chain?.contract ? shortHash(chain.contract, 6) : "FaceMatchRegistry"} tone="magenta" side="left" style={{ left: "-8%", top: "72%" }} />
           </div>
         </div>
       </section>

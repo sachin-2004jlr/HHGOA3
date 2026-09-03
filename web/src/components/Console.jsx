@@ -20,6 +20,16 @@ export default function Console() {
   }, []);
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
+  // deep link: #console?run=<id>
+  useEffect(() => {
+    const m = /run=([A-Za-z0-9_-]+)/.exec(window.location.hash);
+    if (m) setJobId(m[1]);
+  }, []);
+  useEffect(() => {
+    if (!jobId) return;
+    window.history.replaceState(null, "", `#console?run=${jobId}`);
+  }, [jobId]);
+
   useEffect(() => {
     if (!jobId) return undefined;
     let cancelled = false;

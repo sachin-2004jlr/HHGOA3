@@ -105,7 +105,7 @@ export function Empty({ icon = "face", title, children }) {
 export function fmtTime(iso) {
   if (!iso) return "";
   const d = new Date(iso);
-  return isNaN(d) ? iso : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return isNaN(d) ? iso : d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 export function shortHash(h, n = 10) {
