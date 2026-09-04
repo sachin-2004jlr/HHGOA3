@@ -49,23 +49,24 @@ backend and the Vite frontend. It picks free ports automatically (never 5173; de
   facechain  ->  http://localhost:4300     api: http://127.0.0.1:8010/docs
 ```
 
-The landing page opens first; the **Overview / Console** toggle in the top bar (or the
-*Use the application* button) switches into the console.
+The landing page (Veriface) opens first; **Run a scan** in the header switches into the console,
+and **Overview** in the console header returns.
 
 ### Using the console
 
-1. **Face scan input** — drop a photo, or switch to *Webcam*, allow the camera and press *Capture*.
-   *Advanced options* expose the match threshold, how many candidates to face-check, the
-   keyword-search widening and the chain backend.
-2. Press **Identify and anchor**. The **Pipeline** rail shows the six steps live, with timings, a
-   progress bar for the candidate check and an event log.
+1. **Input** — drop a photo, or switch to *Webcam*, allow the camera and press *Capture*.
+   *Options* expose the match threshold, how many candidates to face-check, the social keyword
+   widening and the chain backend.
+2. Press **Run a scan**. The **Pipeline** rail shows the six steps live, with timings, a progress
+   bar for the candidate check and an event log.
 3. Results stream in as cards: the detected face and its embedding hash, the search statistics and
-   candidate pages, the **face-verified match** (your scan next to the found post with the
-   similarity meter), the table of every candidate checked, the three SHA-256 fingerprints, the
-   on-chain receipt (contract, transaction, block) and the verification result.
-4. **Re-verify now** recomputes the hashes from the evidence files and reads the record back from
+   candidate pages, the **match** (your scan next to the found post with the cosine meter), the
+   table of every candidate checked, the three SHA-256 digests, the on-chain record (contract,
+   transaction, block) and the seal verification.
+4. **Re-verify hash** recomputes the hashes from the evidence files and reads the record back from
    the chain. **Tamper test** edits one field in a copy of the evidence and shows verification failing.
-5. **Previous runs** lists every run kept in `evidence/`; click one to load it, or delete it.
+5. **Runs** lists every run kept in `evidence/`; click one to load it, or delete it. The landing
+   page's *Ledger* section shows the latest sealed run live.
 
 ---
 
@@ -137,7 +138,7 @@ streams its state, `POST /api/runs/{id}/verify` and `/tamper`, `GET /api/runs` f
 ## Repository layout
 
 ```
-web/                  React + Vite frontend (landing page + console)
+web/                  React + Vite frontend (Veriface landing page + console, dark theme)
 server/app.py         FastAPI backend: jobs, evidence files, verify/tamper, history
 scripts/dev.js        one-command launcher (free ports, Anvil + API + web)
 facechain/            Python package
