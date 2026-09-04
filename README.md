@@ -54,19 +54,17 @@ and **Overview** in the console header returns.
 
 ### Using the console
 
-1. **Input** — drop a photo, or switch to *Webcam*, allow the camera and press *Capture*.
-   *Options* expose the match threshold, how many candidates to face-check, the social keyword
-   widening and the chain backend.
-2. Press **Run a scan**. The **Pipeline** rail shows the six steps live, with timings, a progress
-   bar for the candidate check and an event log.
-3. Results stream in as cards: the detected face and its embedding hash, the search statistics and
-   candidate pages, the **match** (your scan next to the found post with the cosine meter), the
-   table of every candidate checked, the three SHA-256 digests, the on-chain record (contract,
-   transaction, block) and the seal verification.
-4. **Re-verify hash** recomputes the hashes from the evidence files and reads the record back from
-   the chain. **Tamper test** edits one field in a copy of the evidence and shows verification failing.
-5. **Runs** lists every run kept in `evidence/`; click one to load it, or delete it. The landing
-   page's *Ledger* section shows the latest sealed run live.
+1. **Input** — drop a photo, or switch to *Webcam*, allow the camera and press *Capture*, then **Run a scan**.
+2. The **Pipeline** rail shows the three stages live, with timings and an event log: face scan,
+   web / social media search, blockchain upload and verification.
+3. Three result cards follow: **Face scan** (detected face, aligned crop, embedding hash),
+   **Matching social media post** (your scan next to the found post, cosine similarity, link,
+   which engines ran, who the face was identified as, how many candidates were face-checked) and
+   **Blockchain record** (the three SHA-256 digests, contract, transaction and block).
+4. **Re-verify against chain** recomputes the hashes from the evidence files and compares them with
+   the on-chain record field by field. **Tamper test** edits one field in a copy of the evidence and
+   shows verification failing.
+5. **Runs** lists every run kept in `evidence/`; click one to load it, or delete it.
 
 ---
 
