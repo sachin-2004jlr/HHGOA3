@@ -49,7 +49,7 @@ _jobs_lock = threading.Lock()
 _engine = None
 _engine_lock = threading.Lock()
 
-ALLOWED_FILES = {"query.jpg", "query_annotated.jpg", "query_crop.jpg", "query_face.jpg", "record.json",
+ALLOWED_FILES = {"query.jpg", "query_annotated.jpg", "query_crop.jpg", "query_search.jpg", "query_face.jpg", "record.json",
                  "candidates.json", "chain_receipt.json", "query_embedding.json"}
 MAX_UPLOAD = 15 * 1024 * 1024
 
@@ -164,11 +164,9 @@ def health():
 
 
 def _search_engine_name() -> Optional[str]:
-    if config.SERPAPI_KEY and config.SEARCH_ENGINE in ("auto", "serpapi"):
-        return "serpapi/google_lens"
-    if config.SERPER_API_KEY and config.SEARCH_ENGINE in ("auto", "serper"):
-        return "serper/google_lens"
-    return None
+    from facechain.search import available_engines
+
+    return "+".join(available_engines())
 
 
 @app.get("/api/chain")
@@ -193,8 +191,6 @@ async def create_run(image: UploadFile = File(...), min_similarity: float = Form
         raise HTTPException(400, "empty upload")
     if len(data) > MAX_UPLOAD:
         raise HTTPException(413, "image larger than 15 MB")
-    if not _search_engine_name():
-        raise HTTPException(503, "No reverse-image search key configured. Set SERPER_API_KEY or SERPAPI_KEY in .env")
     if chain not in ("auto", "evm", "sim"):
         raise HTTPException(400, "chain must be auto, evm or sim")
     opts = Options(min_similarity=max(0.0, min(1.0, min_similarity)), max_candidates=max(5, min(150, max_candidates)),

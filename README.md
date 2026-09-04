@@ -35,7 +35,7 @@ python -m venv .venv
 pip install -r requirements.txt
 
 npm run setup                     # installs the launcher + the React frontend
-cp .env.example .env              # put SERPER_API_KEY (or SERPAPI_KEY) in .env
+cp .env.example .env              # optional: SERPER_API_KEY (or SERPAPI_KEY) adds Google Lens
 python scripts/get_anvil.py       # optional: local EVM node (otherwise a simulated chain is used)
 
 npm run dev
@@ -75,8 +75,8 @@ and **Overview** in the console header returns.
 | Step | What happens | Code |
 |-----:|--------------|------|
 | 1 | **Face scan.** *YuNet* detects faces; the largest is aligned and encoded by *SFace* into a 128-d embedding (OpenCV Model Zoo, CPU). | `facechain/face.py` |
-| 2 | **Web / social search.** The face crop is uploaded to a short-lived anonymous image host (Google Lens needs a URL), then sent to **Google Lens** through Serper.dev (or SerpApi). Every returned page is a candidate. If Lens recognises the person, keyword image searches on Instagram / X / Facebook (DuckDuckGo) add more candidates — the name comes from the results, it is never typed in. | `facechain/search.py`, `facechain/uploader.py` |
-| 3 | **Biometric verification.** Every candidate image is downloaded and each face in it is compared with the scan by cosine similarity. Below OpenCV's same-identity threshold (0.363) a candidate is rejected; among the rest, social-media posts are preferred and the highest similarity wins. | `facechain/search.py` |
+| 2 | **Web / social search.** A tight face crop and the whole photo are uploaded to a short-lived anonymous image host (reverse-image engines need a URL). **Yandex reverse image search** (no key; it matches faces and often names the person) gets the crop, and **Google Lens** through Serper.dev or SerpApi (optional key; Lens does not identify people, so it only helps when the photo is already spread around the web) gets every view. Every returned page is a candidate. | `facechain/search.py`, `facechain/uploader.py` |
+| 3 | **Biometric verification.** Every candidate image is downloaded and each face in it is compared with the scan by cosine similarity. Below OpenCV's same-identity threshold (0.363) a candidate is rejected. The person's name is then read from the titles of pages whose face matched (falling back to the engine's own guess), keyword image searches on Instagram / X / Facebook (DuckDuckGo) widen the pool, and those candidates are face-checked too. Social-media posts are preferred and the highest similarity wins. | `facechain/search.py`, `facechain/pipeline.py` |
 | 4 | **Evidence record.** `evidence/<run_id>/` holds the input, the face crop, the embedding, the downloaded post image, every candidate with its score and `record.json`. Fingerprints: `recordHash` = SHA-256 of the canonical record, `imageHash` = SHA-256 of the post image bytes, `faceHash` = SHA-256 of the embedding. | `facechain/evidence.py` |
 | 5 | **Blockchain anchoring.** `anchor(...)` on the `FaceMatchRegistry` contract stores the three hashes, the post URL, the platform and the similarity. The receipt (tx hash, block, contract) is saved next to the evidence. | `contracts/FaceMatchRegistry.sol`, `facechain/chain/evm.py` |
 | 6 | **Re-verification.** Hashes are recomputed from the files on disk, `getRecord(recordHash)` is read from the contract and compared field by field. | `facechain/verify.py` |
@@ -162,9 +162,10 @@ Configuration lives in `.env` (see `.env.example`): search key, thresholds, `RPC
 
 ## Known limitations
 
-* **Reverse image search needs a third-party key.** Google Lens has no public API; Serper.dev
-  (2,500 free queries) or SerpApi (100 free searches/month) is used. Results depend on how well
-  the person is indexed: public figures work well, private individuals usually return nothing.
+* **Search coverage depends on the engines.** Yandex reverse image search is scraped from its
+  public results page (no API, so it can rate-limit or change), and Google Lens by design does
+  not identify people. Results depend on how well the person is indexed: public figures work
+  well, private individuals usually return nothing.
 * **The face crop is uploaded to a temporary public host** (uguu.se / tmpfiles.org, expiring in
   1–3 hours) so that Google Lens can fetch it.
 * **Social platforms block scrapers**, so the post content that is downloaded and hashed is the

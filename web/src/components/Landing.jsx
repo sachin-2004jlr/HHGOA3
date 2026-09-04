@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { fileUrl, getJSON, postJSON } from "../api.js";
-import { chainLine, shortHash } from "./ui.jsx";
+import { chainLine, engineLabel, shortHash } from "./ui.jsx";
 
 const TICKER = ["FACE DETECT", "EMBED 128-D", "REVERSE IMAGE SEARCH", "MATCH CONFIDENCE", "SHA-256 FINGERPRINT", "ON-CHAIN ANCHOR", "RE-VERIFY"];
 

@@ -5,11 +5,12 @@ Used by both the CLI (rich console renderer) and the web API (job status JSON).
     result = run_pipeline(image_bytes=..., options=Options(), emit=callback)
 
 `emit(step, status, title, data=None, message=None)` is called for every step
-transition:  status in {"start", "done", "error"}.  Steps:
+transition:  status in {"start", "progress", "done", "error"}.  Steps:
 
     1 face      detect + embed the input face
-    2 search    reverse image search (+ optional keyword expansion)
-    3 match     download every candidate, compare faces, pick the match
+    2 search    reverse image search with a tight face crop AND the whole photo
+    3 match     face-verify every candidate; take the person's name only from
+                pages whose face matched, widen the search with it, verify again
     4 record    evidence bundle + SHA-256 fingerprints
     5 anchor    write the fingerprints to the blockchain
     6 verify    read the record back and compare
@@ -17,7 +18,7 @@ transition:  status in {"start", "done", "error"}.  Steps:
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -65,12 +66,17 @@ def _noop(*_a, **_k) -> None:
     pass
 
 
+def _cand_dict(c) -> dict:
+    return {"url": c.url, "title": c.title, "source": c.source, "platform": c.platform,
+            "engine": c.engine, "thumbnail_url": c.thumbnail_url, "image_url": c.image_url}
+
+
 def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[bytes] = None,
                  options: Options = Options(), emit: Emit = _noop, run_id: Optional[str] = None,
                  engine=None, source_label: str = "") -> dict:
-    from .face import FaceEngine, crop_face, draw_faces, encode_jpeg
-    from .search import (choose_match, expand_with_ddg, fetch_post_metadata, is_social,
-                         reverse_image_search, verify_candidates)
+    from .face import FaceEngine, crop_face, draw_faces, encode_jpeg, search_image
+    from .search import (choose_match, entity_from_verified, expand_with_ddg, fetch_post_metadata,
+                         is_social, reverse_image_search_many, verify_candidates)
     from .uploader import publish_image
 
     t_start = time.time()
@@ -81,6 +87,9 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
 
     def done(step: int, data: dict | None = None, message: str | None = None):
         emit(step, "done", STEP_TITLES[step], data=data, message=message)
+
+    def note(step: int, message: str):
+        emit(step, "progress", STEP_TITLES[step], message=message)
 
     # ------------------------------------------------------------------ 1. face
     start(1)
@@ -110,6 +119,8 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
     (bundle.dir / "query_annotated.jpg").write_bytes(encode_jpeg(draw_faces(img, faces)))
     crop_path = bundle.dir / "query_crop.jpg"
     crop_path.write_bytes(encode_jpeg(crop_face(img, face), 92))
+    full_path = bundle.dir / "query_search.jpg"
+    full_path.write_bytes(encode_jpeg(search_image(img), 88))
     result["query"] = {**query_info, "files": {"original": "query.jpg", "annotated": "query_annotated.jpg",
                                                "crop": "query_crop.jpg", "face": "query_face.jpg"}}
     done(1, result["query"], f"{len(faces)} face(s) detected, using #{idx}")
@@ -117,47 +128,66 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
     # ---------------------------------------------------------------- 2. search
     start(2)
     if options.image_url:
-        public_url, host = options.image_url, "user-supplied"
+        urls, host = [options.image_url], "user-supplied"
     else:
-        emit(2, "progress", STEP_TITLES[2], message="uploading face crop to a temporary public host")
-        public_url, host = publish_image(crop_path, log=lambda m: emit(2, "progress", STEP_TITLES[2], message=m))
-    emit(2, "progress", STEP_TITLES[2], message=f"querying Google Lens with {public_url}")
-    sr = reverse_image_search(public_url)
+        note(2, "uploading the face crop and the photo to a temporary public host")
+        crop_url, host = publish_image(crop_path, log=lambda m: note(2, m))
+        urls = [crop_url]
+        try:
+            full_url, _ = publish_image(full_path, log=lambda m: note(2, m))
+            urls.append(full_url)
+        except Exception as e:  # noqa: BLE001  (the crop alone still works)
+            note(2, f"full-photo upload skipped: {e}")
+    note(2, f"querying Google Lens with {len(urls)} view(s) of the face")
+    sr = reverse_image_search_many(urls)
     candidates = list(sr.candidates)
-    expanded = 0
-    if sr.entity_name and options.expand:
-        emit(2, "progress", STEP_TITLES[2],
-             message=f"Lens recognised '{sr.entity_name}' - widening with keyword image search on social platforms")
-        extra = expand_with_ddg(sr.entity_name, log=lambda m: emit(2, "progress", STEP_TITLES[2], message=m))
-        seen = {c.url.rstrip("/") for c in candidates}
-        extra = [c for c in extra if c.url.rstrip("/") not in seen]
-        candidates += extra
-        expanded = len(extra)
     if not candidates:
         raise PipelineError(2, "The reverse image search returned no candidates for this face.", "no_candidates")
     social_n = sum(1 for c in candidates if is_social(c.platform))
     result["search"] = {
-        "engine": sr.engine, "query_image_url": public_url, "query_image_host": host,
-        "entity_name": sr.entity_name, "raw_count": sr.raw_count, "unique_pages": len(sr.candidates),
-        "expanded": expanded, "total": len(candidates), "social": social_n,
-        "candidates": [{"url": c.url, "title": c.title, "source": c.source, "platform": c.platform,
-                        "engine": c.engine, "thumbnail_url": c.thumbnail_url, "image_url": c.image_url}
-                       for c in candidates[: options.top_n]],
+        "engine": sr.engine, "query_image_url": urls[0], "query_image_urls": urls, "query_image_host": host,
+        "entity_name": sr.entity_name, "entity_source": "lens" if sr.entity_name else None,
+        "raw_count": sr.raw_count, "unique_pages": len(candidates), "expanded": 0,
+        "total": len(candidates), "social": social_n,
+        "candidates": [_cand_dict(c) for c in candidates[: options.top_n]],
     }
     done(2, result["search"], f"{len(candidates)} candidate pages ({social_n} on social platforms)")
 
     # ------------------------------------------------------------- 3. verify faces
-    start(3, total=min(len(candidates), options.max_candidates))
+    thr = options.min_similarity
     cands = candidates[: options.max_candidates]
-    counter = {"n": 0}
+    start(3, total=len(cands))
+    counter = {"n": 0, "total": len(cands)}
 
     def progress(_v):
         counter["n"] += 1
-        emit(3, "progress", STEP_TITLES[3], data={"done": counter["n"], "total": len(cands)})
+        emit(3, "progress", STEP_TITLES[3], data={"done": counter["n"], "total": counter["total"]})
 
     verified = verify_candidates(engine, face.embedding, cands, max_n=len(cands), progress=progress)
+    passed = sum(1 for v in verified if v.similarity >= thr)
+    note(3, f"{passed} of {len(verified)} candidate faces match the scan")
+
+    # the person's name comes from pages whose face matched; Lens' own guess is only a fallback
+    entity = entity_from_verified(verified, thr)
+    entity_source = "verified_titles" if entity else ("lens" if sr.entity_name else None)
+    entity = entity or sr.entity_name
+    expanded = 0
+    if entity and options.expand:
+        note(3, f"widening with keyword image search for '{entity}' on social platforms")
+        extra = expand_with_ddg(entity, log=lambda m: note(3, m))
+        seen = {c.url.rstrip("/") for c in candidates}
+        extra = [c for c in extra if c.url.rstrip("/") not in seen][: options.max_candidates]
+        if extra:
+            counter["total"] += len(extra)
+            verified += verify_candidates(engine, face.embedding, extra, max_n=len(extra), progress=progress)
+            verified.sort(key=lambda v: v.similarity, reverse=True)
+            candidates += extra
+            expanded = len(extra)
+    social_n = sum(1 for c in candidates if is_social(c.platform))
+    result["search"].update({"entity_name": entity, "entity_source": entity_source, "expanded": expanded,
+                             "total": len(candidates), "social": social_n})
+
     bundle.save_json("candidates.json", [v.to_public_dict() for v in verified])
-    thr = options.min_similarity
     scan = {"threshold": thr, "checked": len(verified),
             "passed": sum(1 for v in verified if v.similarity >= thr),
             "results": [v.to_public_dict() for v in verified[: options.top_n]]}
@@ -165,7 +195,8 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
     match = choose_match(verified, thr)
     if match is None:
         best = verified[0].to_public_dict() if verified else None
-        bundle.save_json("record.json", {"status": "no_match", "search": {"engine": sr.engine}, "best": best})
+        bundle.save_json("record.json", {"status": "no_match", "search": {"engine": sr.engine, "entity_name": entity},
+                                         "best": best})
         result["status"] = "no_match"
         emit(3, "error", STEP_TITLES[3], data=scan,
              message=f"No candidate reached the face-match threshold {thr}"
@@ -181,15 +212,15 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
         "face_bbox": list(match.face_bbox) if match.face_bbox else None,
         "og": {k: v for k, v in meta.items() if k.startswith("og_") and v},
     }
-    done(3, {**scan, "match": result["match"]},
+    done(3, {**scan, "match": result["match"], "search": result["search"]},
          f"match: {match.candidate.platform} post at similarity {match.similarity:.3f}")
 
     # ------------------------------------------------------------ 4. record + hash
     start(4)
     record = ev.build_record(
         run_id=bundle.run_id, query=query_info, match=result["match"],
-        search={"engine": sr.engine, "query_image_url": public_url, "query_image_host": host,
-                "entity_name": sr.entity_name, "candidates_total": len(candidates),
+        search={"engine": sr.engine, "query_image_urls": urls, "query_image_host": host,
+                "entity_name": entity, "entity_source": entity_source, "candidates_total": len(candidates),
                 "lens_results": len(sr.candidates), "expanded": expanded, "social": social_n,
                 "candidates_verified": len(verified), "threshold": thr},
     )
@@ -208,7 +239,7 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
     from .chain import get_backend
 
     backend = get_backend(options.chain)
-    emit(5, "progress", STEP_TITLES[5], message=f"sending transaction on {getattr(backend, 'chain_name', backend.name)}")
+    note(5, f"sending transaction on {getattr(backend, 'chain_name', backend.name)}")
     receipt = backend.anchor(record_hash=record_hash, image_hash=img_sha, face_hash=query_info["embedding_sha256"],
                              post_url=match.candidate.url, platform=match.candidate.platform,
                              similarity=match.similarity)

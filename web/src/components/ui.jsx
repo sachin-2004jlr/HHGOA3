@@ -99,3 +99,9 @@ export function chainLine(chain, offline, withContract = false) {
   if (withContract && chain.contract) return `${name} · CONTRACT ${shortHash(chain.contract, 4)}`;
   return block != null ? `${name} · BLOCK ${Number(block).toLocaleString()}` : name;
 }
+
+export function engineLabel(engine) {
+  if (!engine) return "Search offline";
+  const names = { yandex: "Yandex", serper: "Google Lens", serpapi: "Google Lens" };
+  return engine.split("+").map((e) => names[e.split("/")[0]] || e).join(" + ");
+}

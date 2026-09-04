@@ -172,8 +172,8 @@ def draw_faces(img: np.ndarray, faces: list[Face]) -> np.ndarray:
     return out
 
 
-def crop_face(img: np.ndarray, face: Face, margin: float = 0.8,
-              min_size: int = 320, max_size: int = 900) -> np.ndarray:
+def crop_face(img: np.ndarray, face: Face, margin: float = 0.45,
+              min_size: int = 400, max_size: int = 900) -> np.ndarray:
     """Face crop with context margin (what we send to the reverse-image engine)."""
     H, W = img.shape[:2]
     x, y, w, h = face.bbox
@@ -197,3 +197,12 @@ def encode_jpeg(img: np.ndarray, quality: int = 92) -> bytes:
     if not ok:
         raise RuntimeError("JPEG encode failed")
     return buf.tobytes()
+
+
+def search_image(img: np.ndarray, max_side: int = 1280) -> np.ndarray:
+    """The whole photo, downscaled for the reverse-image engine (context helps identify people)."""
+    h, w = img.shape[:2]
+    f = min(1.0, max_side / max(h, w))
+    if f < 1.0:
+        return cv2.resize(img, (int(w * f), int(h * f)), interpolation=cv2.INTER_AREA)
+    return img

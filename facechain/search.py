@@ -1,18 +1,21 @@
 """Reverse-image search + face-verified candidate ranking.
 
-Step 1  A reverse-image engine (Google Lens via SerpApi or Serper.dev) is
-        queried with a public URL of the scanned face. It returns pages on the
-        open web / social media whose images look like the query.
-Step 2  (optional) If the engine recognised the person (knowledge graph or a
-        name that recurs across result titles) we widen the net with a
-        keyword image search restricted to social platforms (DuckDuckGo, free).
-Step 3  Every candidate image is downloaded and the face in it is compared
-        against the scanned face with SFace cosine similarity. Only
-        candidates whose face actually matches are kept, so the final "post"
-        is verified biometrically and not just by search-engine ranking.
+Engines
+  * Yandex reverse image search (no key). Yandex matches *faces*: for a tight face
+    crop it returns pages carrying the same or a look-alike image, visually similar
+    faces with their source pages, and often the recognised person.
+  * Google Lens via Serper.dev or SerpApi (optional key). Lens deliberately does not
+    identify people, so it only helps when the exact photo is already spread around
+    the web; it is queried with every view of the face (crop + whole photo).
+
+Every candidate image is then downloaded and its face compared with the scan
+(SFace cosine similarity). Only candidates whose face actually matches survive,
+so the final "post" is verified biometrically, not by search ranking.
 """
 from __future__ import annotations
 
+import html as _html
+import json as _json
 import re
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -116,7 +119,7 @@ def _serpapi_lens(image_url: str) -> tuple[list[Candidate], Optional[str], int]:
 
     cands: list[Candidate] = []
     name = None
-    for label, data in responses:
+    for _label, data in responses:
         for key in ("exact_matches", "visual_matches"):
             for i, m in enumerate(data.get(key) or []):
                 link = m.get("link") or m.get("source_link")
@@ -160,52 +163,151 @@ def _serper_lens(image_url: str) -> tuple[list[Candidate], Optional[str], int]:
     return cands, name, len(cands)
 
 
-def pick_engine() -> str:
-    pref = config.SEARCH_ENGINE
-    if pref == "serpapi" or (pref == "auto" and config.SERPAPI_KEY):
-        if not config.SERPAPI_KEY:
-            raise SearchError("SEARCH_ENGINE=serpapi but SERPAPI_KEY is not set")
-        return "serpapi"
-    if pref == "serper" or (pref == "auto" and config.SERPER_API_KEY):
-        if not config.SERPER_API_KEY:
-            raise SearchError("SEARCH_ENGINE=serper but SERPER_API_KEY is not set")
-        return "serper"
-    raise SearchError(
-        "No reverse-image search key configured. Set SERPAPI_KEY (https://serpapi.com, free tier) "
-        "or SERPER_API_KEY (https://serper.dev, free credits) in .env"
-    )
+# ---- Yandex ---------------------------------------------------------------------
+_YANDEX = "https://yandex.com/images/search"
 
 
-def reverse_image_search(image_url: str) -> SearchResult:
-    engine = pick_engine()
-    fn = _serpapi_lens if engine == "serpapi" else _serper_lens
-    cands, name, raw = fn(image_url)
-    cands = _dedupe(cands)
+def _abs(u: str) -> str:
+    return "https:" + u if u and u.startswith("//") else (u or "")
+
+
+def _yandex_state(params: dict) -> dict:
+    headers = {"User-Agent": config.USER_AGENT, "Accept": "text/html,application/xhtml+xml",
+               "Accept-Language": "en-US,en;q=0.9"}
+    r = requests.get(_YANDEX, params=params, headers=headers, timeout=45)
+    if r.status_code != 200:
+        raise SearchError(f"Yandex HTTP {r.status_code}")
+    m = re.search(r'<div class="Root" id="ImagesApp-[^"]+" data-state="([^"]+)"', r.text)
+    if not m:
+        if "captcha" in r.text.lower():
+            raise SearchError("Yandex asked for a captcha (rate limited) - try again in a minute")
+        raise SearchError("Yandex returned an unexpected page")
+    return _json.loads(_html.unescape(m.group(1))).get("initialState", {})
+
+
+def _yandex_reverse(image_url: str) -> tuple[list[Candidate], Optional[str], int]:
+    """Pages carrying the image + visually similar faces (with source pages) + recognised entity."""
+    st = _yandex_state({"rpt": "imageview", "url": image_url})
+    cands: list[Candidate] = []
+    name = None
+    objs = (st.get("cbirObjectResponses") or {}).get("objectResponses") or []
+    if objs and objs[0].get("title") and str(objs[0]["title"]).isascii():
+        name = objs[0]["title"]
+    for i, s_ in enumerate((st.get("cbirSites") or {}).get("sites") or []):
+        if not s_.get("url"):
+            continue
+        cands.append(Candidate(
+            url=s_["url"], title=s_.get("title") or "", source=s_.get("domain") or "",
+            image_url=_abs((s_.get("originalImage") or {}).get("url", "")),
+            thumbnail_url=_abs((s_.get("thumb") or {}).get("url", "")), engine="yandex/sites", position=i + 1))
+    try:
+        sim = _yandex_state({"rpt": "imageview", "url": image_url, "cbir_page": "similar"})
+        ents = ((sim.get("serpList") or {}).get("items") or {}).get("entities") or {}
+        for i, e in enumerate(sorted(ents.values(), key=lambda x: x.get("pos", 0))):
+            sn = e.get("snippet") or {}
+            if not sn.get("url"):
+                continue
+            cands.append(Candidate(
+                url=sn["url"], title=sn.get("title") or e.get("alt") or "", source=sn.get("domain") or "",
+                image_url=e.get("origUrl") or "", thumbnail_url=_abs(e.get("image") or ""),
+                engine="yandex/similar", position=i + 1))
+    except SearchError:
+        pass  # the sites list alone is still useful
     if not name:
-        name = guess_entity_name([c.title for c in cands])
-    return SearchResult(engine=engine, query_image_url=image_url, candidates=cands,
-                        entity_name=name, raw_count=raw)
+        tags = [t.get("text", "") for t in ((st.get("cbirTags") or {}).get("tags") or [])]
+        name = guess_entity_name([c.title for c in cands] + tags, need=3)
+    return cands, name, len(cands)
+
+
+_LENS = {"serpapi": _serpapi_lens, "serper": _serper_lens}
+
+
+def available_engines() -> list[str]:
+    """Yandex needs no key; Google Lens (Serper/SerpApi) is added when a key exists."""
+    pref = config.SEARCH_ENGINE
+    if pref == "yandex":
+        return ["yandex"]
+    engines = ["yandex"]
+    if pref in ("auto", "serpapi") and config.SERPAPI_KEY:
+        engines.append("serpapi")
+    elif pref in ("auto", "serper") and config.SERPER_API_KEY:
+        engines.append("serper")
+    return engines
+
+
+def pick_engine() -> str:
+    return "+".join(available_engines())
+
+
+def _clean_url(u: str) -> str:
+    u = re.sub(r"[?&]utm_[a-z]+=[^&#]*", "", u or "")
+    return u.replace("?&", "?").rstrip("?").split("#")[0]
 
 
 def _dedupe(cands: list[Candidate]) -> list[Candidate]:
     seen, out = set(), []
     for c in cands:
-        key = c.url.split("#")[0].rstrip("/")
-        if key in seen:
+        c.url = _clean_url(c.url)
+        key = c.url.rstrip("/").lower()
+        if not key or key in seen:
             continue
         seen.add(key)
         out.append(c)
     return out
 
 
+def reverse_image_search_many(image_urls: list[str]) -> SearchResult:
+    """Query every available engine with the views of the face and merge.
+
+    Yandex gets the tight face crop (first URL); Google Lens gets every view.
+    Candidates are ordered face-first: Yandex similar faces, Yandex pages, then Lens.
+    """
+    engines = available_engines()
+    jobs: list[tuple[str, str]] = [("yandex", image_urls[0])]
+    for eng in engines:
+        if eng in _LENS:
+            jobs += [(eng, u) for u in image_urls]
+    results: dict[str, list[tuple[list[Candidate], Optional[str], int]]] = {}
+    errors: list[str] = []
+    with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+        futs = {pool.submit(_yandex_reverse if e == "yandex" else _LENS[e], u): e for e, u in jobs}
+        for fut, eng in futs.items():
+            try:
+                results.setdefault(eng, []).append(fut.result())
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"{eng}: {e}")
+    if not results:
+        raise SearchError("; ".join(errors) or "reverse image search failed")
+    order = ["yandex"] + [e for e in engines if e != "yandex"]
+    ordered: list[Candidate] = []
+    name = None
+    raw = 0
+    for eng in order:
+        for c, n, r in results.get(eng, []):
+            ordered += sorted(c, key=lambda x: 0 if x.engine.endswith("similar") else 1)
+            raw += r
+            name = name or n
+    cands = _dedupe(ordered)
+    if not name:
+        name = guess_entity_name([c.title for c in cands])
+    return SearchResult(engine="+".join(e for e in order if e in results), query_image_url=image_urls[0],
+                        candidates=cands, entity_name=name, raw_count=raw)
+
+
+def reverse_image_search(image_url: str) -> SearchResult:
+    return reverse_image_search_many([image_url])
+
+
+# ------------------------------------------------------------- entity guessing
 _STOP = {"The", "And", "For", "With", "From", "New", "Photo", "Photos", "Image", "Images", "Video",
          "News", "Instagram", "Twitter", "Facebook", "Reddit", "TikTok", "YouTube", "Pinterest",
          "LinkedIn", "Wikipedia", "Getty", "Stock", "Free", "Best", "Top", "How", "Why", "What",
-         "Who", "Is", "In", "On", "At", "Of", "To", "By", "Pictures", "Picture", "Latest", "Says"}
+         "Who", "Is", "In", "On", "At", "Of", "To", "By", "Pictures", "Picture", "Latest", "Says",
+         "Wallpaper", "Wallpapers", "Download", "Full", "Join", "Telegram", "Pin", "Ideas"}
 
 
-def guess_entity_name(titles: list[str]) -> Optional[str]:
-    """Most frequent capitalised 2-3 word sequence across result titles (>= 3 hits)."""
+def guess_entity_name(titles: list[str], need: Optional[int] = None) -> Optional[str]:
+    """Most frequent capitalised 2-3 word sequence across result titles (>= `need` hits)."""
     counter: Counter[str] = Counter()
     for t in titles:
         words = re.findall(r"[A-Z][a-zA-Z'\-]+", t or "")
@@ -222,8 +324,17 @@ def guess_entity_name(titles: list[str]) -> Optional[str]:
     if not counter:
         return None
     best, n = counter.most_common(1)[0]
-    need = 2 if len(titles) < 6 else 3
+    if need is None:
+        need = 2 if len(titles) < 6 else 3
     return best if n >= need else None
+
+
+def entity_from_verified(verified: list["Verified"], threshold: float) -> Optional[str]:
+    """Name that recurs in the titles of pages whose face actually matched the scan."""
+    titles = [v.candidate.title for v in verified if v.similarity >= threshold and v.candidate.title]
+    if len(titles) < 2:
+        return None
+    return guess_entity_name(titles, need=2)
 
 
 # ------------------------------------------------------------- expansion (DDG)

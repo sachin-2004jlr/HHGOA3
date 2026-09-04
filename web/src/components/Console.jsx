@@ -4,7 +4,7 @@ import InputPanel from "./InputPanel.jsx";
 import PipelineRail from "./PipelineRail.jsx";
 import Results from "./Results.jsx";
 import History from "./History.jsx";
-import { Alert, Icon, Tag, shortHash } from "./ui.jsx";
+import { Alert, Icon, Tag, engineLabel, shortHash } from "./ui.jsx";
 
 export default function Console({ status, header }) {
   const { health, chain, offline, refreshChain } = status;
@@ -87,7 +87,7 @@ export default function Console({ status, header }) {
       <div className="console-bg" aria-hidden="true" />
       {header}
       <div className="statusbar">
-        <Tag tone={health?.search_engine ? "mint" : "rose"}><span className="led" /> {health?.search_engine ? `Google Lens · ${health.search_engine.split("/")[0]}` : "No search key"}</Tag>
+        <Tag tone={health?.search_engine ? "mint" : "rose"}><span className="led" /> {engineLabel(health?.search_engine)}</Tag>
         {chainTag}
         {chain?.account ? <Tag>Signer {shortHash(chain.account, 4)} · {Number(chain.balance_eth).toFixed(2)} ETH</Tag> : null}
         <span className="spacer" />
@@ -96,9 +96,8 @@ export default function Console({ status, header }) {
 
       <main className="console">
         <div className="col">
-          <InputPanel busy={busy} disabled={offline || !health?.search_engine} onSubmit={onSubmit} />
+          <InputPanel busy={busy} disabled={offline} onSubmit={onSubmit} />
           {error ? <Alert tone="red">{error}</Alert> : null}
-          {!offline && health && !health.search_engine ? <Alert tone="amber"><code>SERPER_API_KEY</code> or <code>SERPAPI_KEY</code> missing in <code>.env</code></Alert> : null}
         </div>
 
         <div className="col">

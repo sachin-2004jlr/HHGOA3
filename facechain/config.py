@@ -30,7 +30,7 @@ SFACE_URL = (
 # --- search ---------------------------------------------------------------
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "").strip()
 SERPER_API_KEY = os.getenv("SERPER_API_KEY", "").strip()
-SEARCH_ENGINE = os.getenv("SEARCH_ENGINE", "auto").strip().lower()  # auto|serpapi|serper
+SEARCH_ENGINE = os.getenv("SEARCH_ENGINE", "auto").strip().lower()  # auto|yandex|serpapi|serper
 # Also run a Google Lens "exact matches" query (costs one extra SerpApi credit per run).
 LENS_EXACT_MATCHES = os.getenv("LENS_EXACT_MATCHES", "false").strip().lower() in ("1", "true", "yes")
 # How many Lens results to ask for per query (Serper `num`).
@@ -38,7 +38,7 @@ LENS_NUM_RESULTS = int(os.getenv("LENS_NUM_RESULTS", "40"))
 
 # SFace cosine-similarity threshold recommended by OpenCV for "same identity".
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.363"))
-MAX_CANDIDATES = int(os.getenv("MAX_CANDIDATES", "60"))
+MAX_CANDIDATES = int(os.getenv("MAX_CANDIDATES", "80"))
 HTTP_TIMEOUT = float(os.getenv("HTTP_TIMEOUT", "12"))
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

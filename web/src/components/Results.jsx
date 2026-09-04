@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { fileUrl, postJSON } from "../api.js";
-import { Alert, Hash, Icon, Meter, PlatformTag, Tag, fmtTime, shortHash } from "./ui.jsx";
+import { Alert, Hash, Icon, Meter, PlatformTag, Tag, engineLabel, fmtTime, shortHash } from "./ui.jsx";
 
 function Card({ title, right, children }) {
   return (
@@ -34,9 +34,9 @@ function ScanCard({ id, q }) {
 
 function SearchCard({ s }) {
   return (
-    <Card title="02 · Open-web search" right={<Tag tone="amber">{s.engine}</Tag>}>
+    <Card title="02 · Open-web search" right={<Tag tone="amber">{engineLabel(s.engine)}</Tag>}>
       <div className="stats">
-        <div className="stat"><small>Lens</small><b className="num">{s.unique_pages ?? s.raw_count ?? "—"}</b></div>
+        <div className="stat"><small>Search hits</small><b className="num">{s.unique_pages ?? s.raw_count ?? "—"}</b></div>
         <div className="stat"><small>Widened</small><b className="num">+{s.expanded ?? 0}</b></div>
         <div className="stat"><small>Candidates</small><b className="num">{s.total ?? s.candidates_total ?? "—"}</b></div>
         <div className="stat"><small>Social</small><b className="num">{s.social ?? "—"}</b></div>
