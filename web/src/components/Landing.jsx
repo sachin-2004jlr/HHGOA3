@@ -96,10 +96,6 @@ export default function Landing({ go, status, header }) {
         {header}
         <div className="hero__stage">
           <h1 className="hero__word">VERIFACE</h1>
-          <div className="hero__subject">
-            <img src="/hero.webp" alt="" />
-            <div className="hero__scan" aria-hidden="true" />
-          </div>
           <div className="hero__copy">
             <b>Proof, carried by light.</b>
             <p>One face becomes one vector. The vector finds its own traces across the open web. What it finds is sealed to a chain that cannot be talked out of it.</p>
