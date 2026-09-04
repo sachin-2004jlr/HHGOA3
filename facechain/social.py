@@ -10,12 +10,15 @@ Sources
     facebook    apify/facebook-search-scraper  -> page(s) -> apify/facebook-posts-scraper
     tiktok      clockworks/tiktok-scraper      search, video covers
     google      hooli/google-images-scraper    "<name>" on instagram / x / facebook / pinterest
+    linkedin    harvestapi/linkedin-profile-search (profile photos) + supreme_coder/linkedin-post (post images)
   Free
     pinterest   DuckDuckGo image search restricted to pinterest.com
     keyword     DuckDuckGo image search "<name>" instagram / twitter / facebook
 """
 from __future__ import annotations
 
+import threading
+import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
@@ -25,6 +28,7 @@ from . import config
 from .search import Candidate, expand_with_ddg
 
 APIFY_RUN = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
+_APIFY_SLOTS = threading.Semaphore(5)  # the free plan allows 5 concurrent actor runs
 
 
 class SocialError(RuntimeError):
@@ -34,9 +38,10 @@ class SocialError(RuntimeError):
 def apify_items(actor: str, payload: dict, timeout: int = 150, memory: int = 1024) -> list[dict]:
     if not config.APIFY_TOKEN:
         raise SocialError("APIFY_TOKEN not set")
-    r = requests.post(APIFY_RUN.format(actor=actor.replace("/", "~")),
-                      params={"token": config.APIFY_TOKEN, "timeout": timeout, "memory": memory},
-                      json=payload, timeout=timeout + 30)
+    with _APIFY_SLOTS:
+        r = requests.post(APIFY_RUN.format(actor=actor.replace("/", "~")),
+                          params={"token": config.APIFY_TOKEN, "timeout": timeout, "memory": memory},
+                          json=payload, timeout=timeout + 30)
     if r.status_code not in (200, 201):
         raise SocialError(f"{actor}: HTTP {r.status_code} {r.text[:120]}")
     data = r.json()
@@ -154,6 +159,53 @@ def google_images(name: str, n: int) -> list[Candidate]:
     return out
 
 
+def _linkedin_profiles(name: str, n: int) -> list[Candidate]:
+    items = apify_items("harvestapi/linkedin-profile-search", {
+        "searchQuery": name, "maxItems": min(5, max(2, n // 5)), "profileScraperMode": "Short",
+    }, timeout=120)
+    out = []
+    for it in items:
+        url, img = it.get("linkedinUrl"), it.get("pictureUrl")
+        if not url or not img:
+            continue
+        who = f"{it.get('firstName') or ''} {it.get('lastName') or ''}".strip()
+        out.append(Candidate(url=url, title=_t(f"{who} · profile"), source="linkedin/profile",
+                             image_url=img, thumbnail_url=img,
+                             engine="apify/linkedin"))
+    return out
+
+
+def _linkedin_posts(name: str, n: int) -> list[Candidate]:
+    search = "https://www.linkedin.com/search/results/content/?keywords=" + urllib.parse.quote(name)
+    items = apify_items("supreme_coder/linkedin-post", {"urls": [search], "limitPerSource": n, "deepScrape": True},
+                        timeout=170)
+    out = []
+    for it in items:
+        imgs = it.get("images") or ([it["image"]] if it.get("image") else [])
+        url = it.get("url")
+        if not url or not imgs:
+            continue
+        handle = (it.get("author") or {}).get("publicId") or it.get("authorName") or ""
+        out.append(Candidate(url=url, title=_t(f"{it.get('authorName') or handle} · {it.get('text') or ''}"),
+                             source=f"linkedin/{handle}", image_url=imgs[0], thumbnail_url=imgs[0],
+                             engine="apify/linkedin"))
+    return out
+
+
+def linkedin(name: str, n: int) -> list[Candidate]:
+    with ThreadPoolExecutor(2) as pool:
+        fp, fq = pool.submit(_linkedin_profiles, name, n), pool.submit(_linkedin_posts, name, n)
+        out, err = [], None
+        for f in (fp, fq):
+            try:
+                out += f.result()
+            except Exception as e:  # noqa: BLE001
+                err = e
+        if not out and err:
+            raise err
+        return out
+
+
 def pinterest(name: str, n: int) -> list[Candidate]:
     from ddgs import DDGS
 
@@ -179,7 +231,7 @@ def sources() -> list[tuple[str, Callable[[str, int], list[Candidate]]]]:
         return free
     # the free Apify plan allows 5 concurrent runs; facebook uses two sequential runs
     return [("instagram", instagram), ("x", x_twitter), ("facebook", facebook), ("tiktok", tiktok),
-            ("google", google_images)] + free
+            ("google", google_images), ("linkedin", linkedin)] + free
 
 
 def expand_social(name: str, per_platform: int | None = None, log=print) -> tuple[list[Candidate], dict]:
