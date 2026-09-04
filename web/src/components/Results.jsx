@@ -42,6 +42,13 @@ function SearchCard({ s }) {
         <div className="stat"><small>Social</small><b className="num">{s.social ?? "—"}</b></div>
         <div className="stat"><small>Entity</small><b className="small">{s.entity_name || "—"}</b></div>
       </div>
+      {s.expanded_by && Object.keys(s.expanded_by).length ? (
+        <div className="match__row" style={{ marginTop: 12 }}>
+          {Object.entries(s.expanded_by).map(([k, v]) => (
+            <Tag key={k} tone={typeof v === "number" ? (v ? "lav" : undefined) : "rose"}>{k} · {typeof v === "number" ? v : "error"}</Tag>
+          ))}
+        </div>
+      ) : null}
       {s.candidates?.length ? (
         <div style={{ overflowX: "auto", marginTop: 14 }}>
           <table className="table">

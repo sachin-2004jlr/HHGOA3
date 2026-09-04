@@ -36,6 +36,10 @@ LENS_EXACT_MATCHES = os.getenv("LENS_EXACT_MATCHES", "false").strip().lower() in
 # How many Lens results to ask for per query (Serper `num`).
 LENS_NUM_RESULTS = int(os.getenv("LENS_NUM_RESULTS", "40"))
 
+# Apify actors scrape Instagram / X / Facebook / TikTok / Google Images for the identified person (optional).
+APIFY_TOKEN = os.getenv("APIFY_TOKEN", "").strip()
+SOCIAL_PER_PLATFORM = int(os.getenv("SOCIAL_PER_PLATFORM", "20"))
+
 # SFace cosine-similarity threshold recommended by OpenCV for "same identity".
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.363"))
 MAX_CANDIDATES = int(os.getenv("MAX_CANDIDATES", "80"))

@@ -160,7 +160,7 @@ def _history_from_disk() -> list[dict]:
 @app.get("/api/health")
 def health():
     return {"ok": True, "version": __version__, "search_engine": _search_engine_name(),
-            "time": ev.now_iso()}
+            "social": "apify" if config.APIFY_TOKEN else None, "time": ev.now_iso()}
 
 
 def _search_engine_name() -> Optional[str]:

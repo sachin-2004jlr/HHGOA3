@@ -75,8 +75,8 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
                  options: Options = Options(), emit: Emit = _noop, run_id: Optional[str] = None,
                  engine=None, source_label: str = "") -> dict:
     from .face import FaceEngine, crop_face, draw_faces, encode_jpeg, search_image
-    from .search import (choose_match, entity_from_verified, expand_with_ddg, fetch_post_metadata,
-                         is_social, reverse_image_search_many, verify_candidates)
+    from .search import (choose_match, entity_from_verified, fetch_post_metadata, is_social,
+                         reverse_image_search_many, verify_candidates)
     from .uploader import publish_image
 
     t_start = time.time()
@@ -172,11 +172,14 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
     entity_source = "verified_titles" if entity else ("lens" if sr.entity_name else None)
     entity = entity or sr.entity_name
     expanded = 0
+    expanded_by: dict = {}
     if entity and options.expand:
-        note(3, f"widening with keyword image search for '{entity}' on social platforms")
-        extra = expand_with_ddg(entity, log=lambda m: note(3, m))
+        from .social import expand_social, sources
+
+        note(3, f"harvesting pictures of '{entity}' from " + ", ".join(label for label, _ in sources()))
+        extra, expanded_by = expand_social(entity, log=lambda m: note(3, m))
         seen = {c.url.rstrip("/") for c in candidates}
-        extra = [c for c in extra if c.url.rstrip("/") not in seen][: options.max_candidates]
+        extra = [c for c in extra if c.url.rstrip("/") not in seen][: options.max_candidates * 2]
         if extra:
             counter["total"] += len(extra)
             verified += verify_candidates(engine, face.embedding, extra, max_n=len(extra), progress=progress)
@@ -185,7 +188,7 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
             expanded = len(extra)
     social_n = sum(1 for c in candidates if is_social(c.platform))
     result["search"].update({"entity_name": entity, "entity_source": entity_source, "expanded": expanded,
-                             "total": len(candidates), "social": social_n})
+                             "expanded_by": expanded_by, "total": len(candidates), "social": social_n})
 
     bundle.save_json("candidates.json", [v.to_public_dict() for v in verified])
     scan = {"threshold": thr, "checked": len(verified),
@@ -221,7 +224,8 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
         run_id=bundle.run_id, query=query_info, match=result["match"],
         search={"engine": sr.engine, "query_image_urls": urls, "query_image_host": host,
                 "entity_name": entity, "entity_source": entity_source, "candidates_total": len(candidates),
-                "lens_results": len(sr.candidates), "expanded": expanded, "social": social_n,
+                "lens_results": len(sr.candidates), "expanded": expanded, "expanded_by": expanded_by,
+                "social": social_n,
                 "candidates_verified": len(verified), "threshold": thr},
     )
     record_hash = bundle.write_record(record)

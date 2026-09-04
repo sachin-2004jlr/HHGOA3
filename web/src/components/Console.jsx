@@ -88,6 +88,7 @@ export default function Console({ status, header }) {
       {header}
       <div className="statusbar">
         <Tag tone={health?.search_engine ? "mint" : "rose"}><span className="led" /> {engineLabel(health?.search_engine)}</Tag>
+        {health?.social ? <Tag tone="lav">Apify social</Tag> : null}
         {chainTag}
         {chain?.account ? <Tag>Signer {shortHash(chain.account, 4)} · {Number(chain.balance_eth).toFixed(2)} ETH</Tag> : null}
         <span className="spacer" />

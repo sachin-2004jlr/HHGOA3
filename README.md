@@ -76,7 +76,7 @@ and **Overview** in the console header returns.
 |-----:|--------------|------|
 | 1 | **Face scan.** *YuNet* detects faces; the largest is aligned and encoded by *SFace* into a 128-d embedding (OpenCV Model Zoo, CPU). | `facechain/face.py` |
 | 2 | **Web / social search.** A tight face crop and the whole photo are uploaded to a short-lived anonymous image host (reverse-image engines need a URL). **Yandex reverse image search** (no key; it matches faces and often names the person) gets the crop, and **Google Lens** through Serper.dev or SerpApi (optional key; Lens does not identify people, so it only helps when the photo is already spread around the web) gets every view. Every returned page is a candidate. | `facechain/search.py`, `facechain/uploader.py` |
-| 3 | **Biometric verification.** Every candidate image is downloaded and each face in it is compared with the scan by cosine similarity. Below OpenCV's same-identity threshold (0.363) a candidate is rejected. The person's name is then read from the titles of pages whose face matched (falling back to the engine's own guess), keyword image searches on Instagram / X / Facebook (DuckDuckGo) widen the pool, and those candidates are face-checked too. Social-media posts are preferred and the highest similarity wins. | `facechain/search.py`, `facechain/pipeline.py` |
+| 3 | **Biometric verification.** Every candidate image is downloaded and each face in it is compared with the scan by cosine similarity. Below OpenCV's same-identity threshold (0.363) a candidate is rejected. The person's name is then read from the titles of pages whose face matched (falling back to the engine's own guess). With that name, **Apify actors harvest their pictures from Instagram, X, Facebook (official page posts), TikTok and Google Images**, DuckDuckGo adds Pinterest and keyword hits, and every one of those pictures is face-checked too. Social-media posts are preferred and the highest similarity wins. | `facechain/search.py`, `facechain/pipeline.py` |
 | 4 | **Evidence record.** `evidence/<run_id>/` holds the input, the face crop, the embedding, the downloaded post image, every candidate with its score and `record.json`. Fingerprints: `recordHash` = SHA-256 of the canonical record, `imageHash` = SHA-256 of the post image bytes, `faceHash` = SHA-256 of the embedding. | `facechain/evidence.py` |
 | 5 | **Blockchain anchoring.** `anchor(...)` on the `FaceMatchRegistry` contract stores the three hashes, the post URL, the platform and the similarity. The receipt (tx hash, block, contract) is saved next to the evidence. | `contracts/FaceMatchRegistry.sol`, `facechain/chain/evm.py` |
 | 6 | **Re-verification.** Hashes are recomputed from the files on disk, `getRecord(recordHash)` is read from the contract and compared field by field. | `facechain/verify.py` |
@@ -145,6 +145,7 @@ facechain/            Python package
   pipeline.py         the six-step pipeline with progress events
   face.py             YuNet detection + SFace embedding, webcam capture
   search.py           Google Lens (Serper / SerpApi), DuckDuckGo widening, face-verified ranking
+  social.py           Apify actors (Instagram, X, Facebook, TikTok, Google Images) + DuckDuckGo Pinterest
   uploader.py         temporary public hosting of the face crop
   evidence.py         evidence bundle, canonical JSON, SHA-256
   verify.py           re-verification + tamper copy
@@ -168,9 +169,9 @@ Configuration lives in `.env` (see `.env.example`): search key, thresholds, `RPC
   well, private individuals usually return nothing.
 * **The face crop is uploaded to a temporary public host** (uguu.se / tmpfiles.org, expiring in
   1–3 hours) so that Google Lens can fetch it.
-* **Social platforms block scrapers**, so the post content that is downloaded and hashed is the
-  image and metadata returned by the search engine plus Open Graph tags when the page is
-  fetchable, not a full page scrape.
+* **Social platforms block scrapers**, so post content comes from the search engines and the Apify
+  actors (image, URL, caption, author) plus Open Graph tags when the page is fetchable, not a full
+  page scrape. Apify runs cost credits: roughly a few cents per run on the free plan's $5/month.
 * **Accuracy.** SFace is a compact model; the 0.363 cosine threshold gives good precision, but
   small thumbnails, sunglasses or strong pose changes can push true matches below it. The
   threshold is adjustable in the console and every candidate's score is shown.
