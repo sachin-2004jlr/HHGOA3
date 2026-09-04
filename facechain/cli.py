@@ -123,8 +123,8 @@ def _render_step(step: int, d: dict | None) -> None:
         if m:
             console.print(Panel(
                 f"[bold green]MATCH[/] similarity={m['similarity']} platform=[magenta]{m['platform']}[/]\n"
-                                f"[bold]{m['title']}[/]\n{m['post_url']}", title="Discovered social-media post",
-                                border_style="green"))
+                f"[bold]{m['title']}[/]\n{m['post_url']}", title="Discovered social-media post",
+                border_style="green"))
     elif step == 4:
         console.print(kv_table([("record_hash", "0x" + d["record"]), ("image_hash", "0x" + d["image"]),
                                 ("face_hash", "0x" + d["face"])]))
