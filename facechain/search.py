@@ -423,12 +423,13 @@ def verify_candidates(engine: FaceEngine, query_vec: np.ndarray, cands: list[Can
     return out
 
 
-# 1 = photo networks (own or fan posts), 2 = video platforms (covers), 3 = re-pin / gallery sites, web last
+# Platform tiers only add a small bonus: 1 = photo networks, 2 = video platforms, 3 = re-pin / gallery sites.
 PLATFORM_TIER = {p: 1 for p in ("instagram", "x", "facebook", "threads", "reddit", "linkedin", "snapchat",
                                 "vk", "weibo")}
 PLATFORM_TIER.update({p: 2 for p in ("tiktok", "youtube")})
 PLATFORM_TIER.update({p: 3 for p in ("pinterest", "tumblr", "flickr", "imgur", "quora", "medium")})
-STRONG_MATCH = 0.5
+TIER_BONUS = {1: 0.05, 2: 0.02, 3: 0.0}
+OWN_ACCOUNT_BONUS = 0.05
 
 
 def _letters(s: str) -> str:
@@ -444,22 +445,19 @@ def own_account(v: Verified, entity: Optional[str]) -> bool:
     return len(e) >= 5 and bool(handle) and (e in handle or handle in e)
 
 
+def match_score(v: Verified, entity: Optional[str] = None) -> float:
+    """Similarity first; a small bonus for photo networks and for the person's own account."""
+    bonus = TIER_BONUS.get(PLATFORM_TIER.get(v.candidate.platform, 0), 0.0)
+    return v.similarity + bonus + (OWN_ACCOUNT_BONUS if own_account(v, entity) else 0.0)
+
+
 def choose_match(verified: list[Verified], threshold: float, entity: Optional[str] = None) -> Optional[Verified]:
-    """Above-threshold candidates only. Prefer confident matches on photo networks, then video
-    platforms, then re-pin sites, then the open web. Within a tier the person's own account wins,
-    then the highest similarity."""
+    """Above-threshold candidates only; social-media posts before plain web pages; highest score wins."""
     passing = [v for v in verified if v.similarity >= threshold]
     if not passing:
         return None
-    key = lambda v: (own_account(v, entity), v.similarity)  # noqa: E731
-    for tier in (1, 2, 3):
-        pool = [v for v in passing if PLATFORM_TIER.get(v.candidate.platform) == tier]
-        if pool:
-            best = max(pool, key=key)
-            if best.similarity >= STRONG_MATCH:
-                return best
     social = [v for v in passing if is_social(v.candidate.platform)]
-    return max(social or passing, key=key)
+    return max(social or passing, key=lambda v: match_score(v, entity))
 
 
 # ------------------------------------------------------------- post metadata
