@@ -72,10 +72,15 @@ No API keys are required. Optional extras go in `.env` (copy `.env.example`):
 
 | Card | Contents |
 |---|---|
-| **Pipeline** | The three stages running live, with timings and a log |
-| **01 · Face scan** | The detected face and the hash of its vector |
-| **02 · Matching social media post** | Your scan beside the found post, the similarity score, who the face was identified as, the other matched images |
-| **03 · Blockchain record** | The digests, contract, transaction and block. **Re-verify against chain** recomputes everything from the saved files and compares it with the chain. **Tamper test** proves a changed byte is caught. |
+| **Input** | Photo upload or webcam capture, plus options: match threshold, candidates to check, keyword widening, chain |
+| **Pipeline** | The six steps running live, with timings, a progress bar and an event log |
+| **01 · Face scan** | The detected face, the aligned crop, the search crop and the hash of the face vector |
+| **02 · Open-web search** | Which engines ran, how many results, who the face was identified as, the candidate pages |
+| **03 · Match** | Your scan beside the found post with the similarity meter and the link |
+| **Candidates** | Every candidate image that was face-checked, with its score |
+| **04 · Digest** | The three SHA-256 fingerprints |
+| **05 · On-chain record** | Contract, transaction, block, time and gas |
+| **06 · Seal** | **Re-verify hash** recomputes everything from the saved files and compares it with the chain; **Tamper test** proves a changed byte is caught |
 | **Runs** | Every past run, reloadable at any time |
 
 <div align="center">

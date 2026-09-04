@@ -6,6 +6,10 @@ export default function InputPanel({ busy, disabled, onSubmit }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [over, setOver] = useState(false);
+  const [thr, setThr] = useState(0.363);
+  const [maxC, setMaxC] = useState(60);
+  const [expand, setExpand] = useState(true);
+  const [chain, setChain] = useState("auto");
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -66,7 +70,7 @@ export default function InputPanel({ busy, disabled, onSubmit }) {
   const submit = (e) => {
     e.preventDefault();
     if (!ready || busy || disabled) return;
-    const opts = {};
+    const opts = { min_similarity: thr, max_candidates: maxC, expand, chain };
     if (tab === "upload") onSubmit(file, opts, "upload");
     else onSubmit(new File([shot.blob], "webcam.jpg", { type: "image/jpeg" }), opts, "webcam");
   };
@@ -113,6 +117,29 @@ export default function InputPanel({ busy, disabled, onSubmit }) {
             </div>
           </div>
         )}
+
+        <details className="options">
+          <summary><Icon name="chevron" /> Options</summary>
+          <div className="options__grid">
+            <div className="field">
+              <label htmlFor="thr">Threshold <b>{thr.toFixed(3)}</b></label>
+              <input id="thr" type="range" min="0.25" max="0.60" step="0.005" value={thr} onChange={(e) => setThr(Number(e.target.value))} />
+            </div>
+            <div className="field">
+              <label htmlFor="maxc">Candidates <b>{maxC}</b></label>
+              <input id="maxc" type="range" min="10" max="150" step="5" value={maxC} onChange={(e) => setMaxC(Number(e.target.value))} />
+            </div>
+            <label className="check"><input type="checkbox" checked={expand} onChange={(e) => setExpand(e.target.checked)} /> Social keyword widening</label>
+            <div className="field">
+              <label htmlFor="chain">Chain</label>
+              <select id="chain" value={chain} onChange={(e) => setChain(e.target.value)}>
+                <option value="auto">Auto</option>
+                <option value="evm">EVM node</option>
+                <option value="sim">Simulated</option>
+              </select>
+            </div>
+          </div>
+        </details>
 
         <div className="submit">
           <button type="submit" className="pill pill--lav pill--block" disabled={!ready || busy || disabled}>
