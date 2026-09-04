@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { fileUrl, postJSON } from "../api.js";
-import { Alert, Empty, Hash, Icon, Meter, Pill, PlatformPill, fmtTime, shortHash } from "./ui.jsx";
+import { Alert, Hash, Icon, Meter, PlatformTag, Tag, fmtTime, shortHash } from "./ui.jsx";
 
-function Card({ icon, title, right, children, className = "" }) {
+function Card({ title, right, children }) {
   return (
-    <section className={`card enter ${className}`}>
-      <div className="card__head"><h3><Icon name={icon} /> {title}</h3>{right}</div>
+    <section className="card enter">
+      <div className="card__head"><h3>{title}</h3>{right}</div>
       <div className="card__body">{children}</div>
     </section>
   );
@@ -13,19 +13,19 @@ function Card({ icon, title, right, children, className = "" }) {
 
 function ScanCard({ id, q }) {
   return (
-    <Card icon="face" title="Step 1 · Face scan" right={<Pill tone="teal">{q.faces_in_image} face{q.faces_in_image === 1 ? "" : "s"} detected</Pill>}>
+    <Card title="01 · Face scan" right={<Tag tone="lav">{q.faces_in_image} face{q.faces_in_image === 1 ? "" : "s"}</Tag>}>
       <div className="scan">
-        <div className="scan__img"><img src={fileUrl(id, q.files.annotated)} alt="input with detected faces" /></div>
+        <div className="scan__img"><img src={fileUrl(id, q.files.annotated)} alt="" /></div>
         <div className="facecrop">
-          <img src={fileUrl(id, q.files.face)} alt="aligned face crop" />
-          <span>aligned 112×112 crop</span>
-          <img src={fileUrl(id, q.files.crop)} alt="search crop" />
-          <span>sent to the search</span>
+          <img src={fileUrl(id, q.files.face)} alt="" />
+          <span>aligned 112</span>
+          <img src={fileUrl(id, q.files.crop)} alt="" />
+          <span>search crop</span>
         </div>
       </div>
-      <dl className="kv" style={{ marginTop: 14 }}>
-        <dt>bounding box</dt><dd className="num">x {q.face_bbox?.[0]}, y {q.face_bbox?.[1]}, {q.face_bbox?.[2]}×{q.face_bbox?.[3]} px · detector score {q.detector_score}</dd>
-        <dt>embedding</dt><dd>SFace, {q.embedding_dim}-d, L2-normalised <Hash value={q.embedding_sha256} label="face hash" /></dd>
+      <dl className="kv" style={{ marginTop: 16 }}>
+        <dt>bbox</dt><dd className="num">{q.face_bbox?.[0]}, {q.face_bbox?.[1]} · {q.face_bbox?.[2]}×{q.face_bbox?.[3]} · q {q.detector_score}</dd>
+        <dt>embedding</dt><dd>{q.embedding_dim}-D · L2 <Hash value={q.embedding_sha256} label="face hash" /></dd>
         <dt>models</dt><dd>{q.model?.detector} · {q.model?.recognizer}</dd>
       </dl>
     </Card>
@@ -34,25 +34,24 @@ function ScanCard({ id, q }) {
 
 function SearchCard({ s }) {
   return (
-    <Card icon="search" title="Step 2 · Web and social media search" right={<Pill tone="amber">{s.engine}</Pill>}>
+    <Card title="02 · Open-web search" right={<Tag tone="amber">{s.engine}</Tag>}>
       <div className="stats">
-        <div className="stat"><small>Lens results</small><b className="num">{s.unique_pages ?? s.raw_count ?? "-"}</b></div>
-        <div className="stat"><small>Widened by</small><b className="num">+{s.expanded ?? 0}</b></div>
-        <div className="stat"><small>Total candidates</small><b className="num">{s.total ?? s.candidates_total ?? "-"}</b></div>
-        <div className="stat"><small>On social platforms</small><b className="num">{s.social ?? "-"}</b></div>
-        <div className="stat"><small>Recognised entity</small><b className="small">{s.entity_name || "not recognised"}</b></div>
+        <div className="stat"><small>Lens</small><b className="num">{s.unique_pages ?? s.raw_count ?? "—"}</b></div>
+        <div className="stat"><small>Widened</small><b className="num">+{s.expanded ?? 0}</b></div>
+        <div className="stat"><small>Candidates</small><b className="num">{s.total ?? s.candidates_total ?? "—"}</b></div>
+        <div className="stat"><small>Social</small><b className="num">{s.social ?? "—"}</b></div>
+        <div className="stat"><small>Entity</small><b className="small">{s.entity_name || "—"}</b></div>
       </div>
-      {s.query_image_url ? <p className="hint">query image ({s.query_image_host}): <a href={s.query_image_url} target="_blank" rel="noreferrer">{s.query_image_url}</a></p> : null}
       {s.candidates?.length ? (
-        <div style={{ overflowX: "auto", marginTop: 12 }}>
+        <div style={{ overflowX: "auto", marginTop: 14 }}>
           <table className="table">
             <thead><tr><th>#</th><th>platform</th><th>page</th><th>url</th></tr></thead>
             <tbody>
               {s.candidates.slice(0, 12).map((c, i) => (
                 <tr key={c.url + i}>
-                  <td className="num">{i + 1}</td>
-                  <td><PlatformPill platform={c.platform} /></td>
-                  <td className="cell-title" title={c.title}>{c.title || "-"}</td>
+                  <td className="num mono">{i + 1}</td>
+                  <td><PlatformTag platform={c.platform} /></td>
+                  <td className="cell-title" title={c.title}>{c.title || "—"}</td>
                   <td className="cell-url"><a href={c.url} target="_blank" rel="noreferrer">{c.url}</a></td>
                 </tr>
               ))}
@@ -66,31 +65,20 @@ function SearchCard({ s }) {
 
 function MatchCard({ id, q, m, thr }) {
   return (
-    <Card icon="shield" title="Step 3 · Face-verified match" right={<PlatformPill platform={m.platform} />} className="card--match">
+    <Card title="03 · Match" right={<PlatformTag platform={m.platform} />}>
       <div className="match">
-        <figure className="match__img" style={{ margin: 0 }}>
-          <img src={fileUrl(id, q.files.crop)} alt="scanned face" />
-          <span className="bracket bracket--tl" aria-hidden="true" /><span className="bracket bracket--tr" aria-hidden="true" />
-          <span className="bracket bracket--bl" aria-hidden="true" /><span className="bracket bracket--br" aria-hidden="true" />
-          <figcaption>your scan</figcaption>
-        </figure>
+        <figure className="match__img"><img src={fileUrl(id, q.files.crop)} alt="" /><figcaption>Scan</figcaption></figure>
         <Meter value={Number(m.similarity)} threshold={thr} />
-        <figure className="match__img" style={{ margin: 0 }}>
-          <img src={fileUrl(id, m.image_file)} alt="image from the matched post" />
-          <span className="bracket bracket--tl" aria-hidden="true" /><span className="bracket bracket--tr" aria-hidden="true" />
-          <span className="bracket bracket--bl" aria-hidden="true" /><span className="bracket bracket--br" aria-hidden="true" />
-          <figcaption>found post</figcaption>
-        </figure>
+        <figure className="match__img"><img src={fileUrl(id, m.image_file)} alt="" /><figcaption>Post</figcaption></figure>
       </div>
       <div className="match__info">
         <div className="match__title">{m.title || m.og?.og_title || m.post_url}</div>
         <div className="match__url">{m.post_url}</div>
         {m.og?.og_description ? <p className="match__desc">{m.og.og_description}</p> : null}
         <div className="match__row">
-          <a className="btn btn--sm" href={m.post_url} target="_blank" rel="noreferrer"><Icon name="external" /> Open post</a>
-          <a className="btn btn--sm btn--ghost" href={m.image_url} target="_blank" rel="noreferrer"><Icon name="image" /> Source image</a>
-          {m.source ? <Pill>{m.source}</Pill> : null}
-          <Pill>{m.faces_in_image} face{m.faces_in_image === 1 ? "" : "s"} in image</Pill>
+          <a className="pill pill--outline pill--xs" href={m.post_url} target="_blank" rel="noreferrer">Open post <Icon name="external" style={{ width: 12, height: 12 }} /></a>
+          <a className="pill pill--outline pill--xs" href={m.image_url} target="_blank" rel="noreferrer">Source image</a>
+          {m.source ? <Tag>{m.source}</Tag> : null}
         </div>
       </div>
     </Card>
@@ -100,20 +88,20 @@ function MatchCard({ id, q, m, thr }) {
 function ScanTable({ scan, matchUrl }) {
   const thr = scan.threshold;
   return (
-    <Card icon="layers" title="Candidates checked" right={<Pill tone={scan.passed ? "green" : "amber"}>{scan.passed} of {scan.checked} passed ≥ {thr}</Pill>}>
+    <Card title="Candidates" right={<Tag tone={scan.passed ? "mint" : "amber"}>{scan.passed} / {scan.checked} ≥ {thr}</Tag>}>
       <div style={{ overflowX: "auto" }}>
         <table className="table">
-          <thead><tr><th>similarity</th><th></th><th>platform</th><th>page</th><th>faces</th></tr></thead>
+          <thead><tr><th>cosine</th><th></th><th>platform</th><th>page</th><th>faces</th></tr></thead>
           <tbody>
             {scan.results.map((v, i) => {
               const pass = v.similarity >= thr;
               return (
                 <tr key={v.url + i} className={`${pass ? "is-pass" : ""} ${v.url === matchUrl ? "is-match" : ""}`}>
-                  <td><span className={`simbar num ${pass ? "is-pass" : ""}`}><span>{v.similarity >= 0 ? v.similarity.toFixed(3) : "no face"}</span><i><b style={{ width: `${Math.max(0, v.similarity) * 100}%` }} /></i></span></td>
+                  <td><span className={`simbar num ${pass ? "is-pass" : ""}`}><span>{v.similarity >= 0 ? v.similarity.toFixed(3) : "—"}</span><i><b style={{ width: `${Math.max(0, v.similarity) * 100}%` }} /></i></span></td>
                   <td>{v.thumbnail_url ? <img className="thumb" src={v.thumbnail_url} alt="" loading="lazy" referrerPolicy="no-referrer" /> : null}</td>
-                  <td><PlatformPill platform={v.platform} /></td>
+                  <td><PlatformTag platform={v.platform} /></td>
                   <td className="cell-title" title={v.title}><a href={v.url} target="_blank" rel="noreferrer">{v.title || v.url}</a></td>
-                  <td className="num">{v.faces_found}</td>
+                  <td className="num mono">{v.faces_found}</td>
                 </tr>
               );
             })}
@@ -126,11 +114,11 @@ function ScanTable({ scan, matchUrl }) {
 
 function Fingerprints({ h }) {
   return (
-    <Card icon="hash" title="Step 4 · Fingerprints (SHA-256)">
+    <Card title="04 · Digest">
       <div className="fp">
-        <div className="fp__row"><small><b>recordHash</b>canonical record.json</small><Hash value={h.record} label="record hash" /></div>
-        <div className="fp__row"><small><b>imageHash</b>{h.image_file} bytes</small><Hash value={h.image} label="image hash" /></div>
-        <div className="fp__row"><small><b>faceHash</b>query embedding vector</small><Hash value={h.face} label="face hash" /></div>
+        <div className="fp__row"><small>record<b>{h.record_file}</b></small><Hash value={h.record} label="record hash" /></div>
+        <div className="fp__row"><small>image<b>{h.image_file}</b></small><Hash value={h.image} label="image hash" /></div>
+        <div className="fp__row"><small>face<b>embedding</b></small><Hash value={h.face} label="face hash" /></div>
       </div>
     </Card>
   );
@@ -139,20 +127,20 @@ function Fingerprints({ h }) {
 function Receipt({ r }) {
   const evm = r.backend === "evm";
   return (
-    <Card icon="chain" title="Step 5 · On-chain receipt" right={<Pill tone={evm ? "indigo" : "amber"}>{r.chain}</Pill>}>
+    <Card title="05 · On-chain record" right={<Tag tone={evm ? "lav" : "amber"}>{r.chain}</Tag>}>
       <div className="receipt">
         <dl className="kv">
           {evm ? <><dt>contract</dt><dd><Hash value={r.contract} prefix={false} label="contract" /></dd></> : null}
-          <dt>{evm ? "transaction" : "block hash"}</dt><dd><Hash value={evm ? r.tx_hash : r.block_hash} prefix={false} label="tx" /></dd>
-          <dt>block</dt><dd className="num">#{r.block_number}{evm ? "" : ` · nonce ${r.nonce}`}</dd>
+          <dt>{evm ? "tx hash" : "block hash"}</dt><dd><Hash value={evm ? r.tx_hash : r.block_hash} prefix={false} label="tx" /></dd>
+          <dt>block</dt><dd className="num mono">{Number(r.block_number).toLocaleString()}{evm ? "" : ` · nonce ${r.nonce}`}</dd>
         </dl>
         <dl className="kv">
-          <dt>block hash</dt><dd className="mono">{shortHash(r.block_hash, 12)}</dd>
-          <dt>timestamp</dt><dd>{fmtTime(new Date(r.block_timestamp * 1000).toISOString())}</dd>
-          {evm ? <><dt>gas used</dt><dd className="num">{r.gas_used}</dd><dt>submitter</dt><dd className="mono">{shortHash(r.submitter, 8)}</dd></> : <><dt>ledger</dt><dd className="mono">{r.file}</dd></>}
+          <dt>block hash</dt><dd className="mono">{shortHash(r.block_hash, 10)}</dd>
+          <dt>time</dt><dd className="mono">{new Date(r.block_timestamp * 1000).toISOString().replace("T", " ").slice(0, 19)} UTC</dd>
+          {evm ? <><dt>gas</dt><dd className="num mono">{r.gas_used}</dd><dt>submitter</dt><dd className="mono">{shortHash(r.submitter, 6)}</dd></> : null}
         </dl>
       </div>
-      {r.explorer_tx ? <p style={{ marginTop: 12 }}><a className="btn btn--sm" href={r.explorer_tx} target="_blank" rel="noreferrer"><Icon name="external" /> View on block explorer</a></p> : null}
+      {r.explorer_tx ? <p style={{ marginTop: 14 }}><a className="pill pill--outline pill--xs" href={r.explorer_tx} target="_blank" rel="noreferrer">Explorer</a></p> : null}
     </Card>
   );
 }
@@ -161,11 +149,11 @@ function Checks({ v }) {
   return (
     <div className="checks">
       <table className="table">
-        <thead><tr><th>check</th><th>local (recomputed now)</th><th>on-chain / recorded</th><th>result</th></tr></thead>
+        <thead><tr><th>check</th><th>recomputed</th><th>on-chain</th><th></th></tr></thead>
         <tbody>
           {v.checks.map((c, i) => (
             <tr key={i}>
-              <td>{c.name}{c.kind === "chain" ? <Pill tone="indigo" className="pill--sm" >chain</Pill> : null}</td>
+              <td>{c.name}</td>
               <td className="cell-url" title={c.local}>{c.local}</td>
               <td className="cell-url" title={c.remote}>{c.remote}</td>
               <td>{c.ok ? <span className="ok">OK</span> : <span className="bad">MISMATCH</span>}</td>
@@ -194,36 +182,32 @@ function VerifyPanel({ id, initial }) {
   };
 
   return (
-    <Card icon="shield" title="Step 6 · Verification against the chain"
+    <Card title="06 · Seal"
       right={<div className="actions">
-        <button className="btn btn--sm" onClick={() => run("verify")} disabled={!!busy}>{busy === "verify" ? <span className="spinner" /> : <Icon name="refresh" />} Re-verify now</button>
-        <button className="btn btn--sm btn--danger" onClick={() => run("tamper")} disabled={!!busy}>{busy === "tamper" ? <span className="spinner" /> : <Icon name="alert" />} Tamper test</button>
+        <button className="pill pill--outline pill--xs" onClick={() => run("verify")} disabled={!!busy}>{busy === "verify" ? <span className="spinner" /> : null} Re-verify hash</button>
+        <button className="pill pill--outline pill--xs" onClick={() => run("tamper")} disabled={!!busy}>{busy === "tamper" ? <span className="spinner" /> : null} Tamper test</button>
       </div>}>
       {err ? <Alert tone="red">{err}</Alert> : null}
       {v ? (
         <>
           <div className={`verdict ${v.all_ok ? "verdict--ok" : "verdict--bad"}`}>
             <Icon name={v.all_ok ? "check" : "x"} />
-            <div>{v.all_ok ? "VERIFIED" : v.found ? "MISMATCH" : "NOT FOUND ON CHAIN"}<small>{v.message}{v.anchored_at ? ` Anchored ${fmtTime(v.anchored_at)}.` : ""}</small></div>
+            <div>{v.all_ok ? "Verified" : v.found ? "Mismatch" : "Not found on chain"}<small>{v.message}{v.anchored_at ? ` · anchored ${fmtTime(v.anchored_at)}` : ""}</small></div>
           </div>
-          <dl className="kv" style={{ marginTop: 12 }}>
-            <dt>record hash</dt><dd><Hash value={v.record_hash} label="record hash" /></dd>
+          <dl className="kv" style={{ marginTop: 14 }}>
+            <dt>digest</dt><dd><Hash value={v.record_hash} label="record hash" /></dd>
             <dt>chain</dt><dd>{v.chain?.name}{v.chain?.contract ? <> · <span className="mono">{v.chain.contract}</span></> : null}</dd>
-            {v.chain_integrity ? <><dt>ledger integrity</dt><dd className={v.chain_integrity.ok ? "ok" : "bad"}>{v.chain_integrity.message}</dd></> : null}
+            {v.chain_integrity ? <><dt>ledger</dt><dd className={v.chain_integrity.ok ? "ok" : "bad"}>{v.chain_integrity.message}</dd></> : null}
             {v.warning ? <><dt>warning</dt><dd className="bad">{v.warning}</dd></> : null}
           </dl>
           <Checks v={v} />
         </>
-      ) : <p className="hint">Not verified yet. Click Re-verify to recompute the hashes from the evidence files and look the record up on the chain.</p>}
-
+      ) : null}
       {tamper ? (
         <div style={{ marginTop: 18 }} className="enter">
-          <Alert tone="amber" icon="alert">
-            Tamper test: copied the evidence and changed <code>{tamper.tamper.field}</code> from <code>{tamper.tamper.before}</code> to <code>{tamper.tamper.after}</code>, then verified the copy.
-          </Alert>
-          <div className={`verdict ${tamper.verify.all_ok ? "verdict--ok" : "verdict--bad"}`} style={{ marginTop: 10 }}>
+          <div className={`verdict ${tamper.verify.all_ok ? "verdict--ok" : "verdict--bad"}`}>
             <Icon name={tamper.verify.all_ok ? "check" : "x"} />
-            <div>{tamper.verify.all_ok ? "UNEXPECTED: tampered copy verified" : "TAMPERING DETECTED"}<small>{tamper.verify.message}</small></div>
+            <div>{tamper.verify.all_ok ? "Tampered copy verified" : "Tampering detected"}<small>{tamper.tamper.field}: {tamper.tamper.before} → {tamper.tamper.after}</small></div>
           </div>
         </div>
       ) : null}
@@ -232,13 +216,7 @@ function VerifyPanel({ id, initial }) {
 }
 
 export default function Results({ job }) {
-  if (!job) {
-    return (
-      <section className="card">
-        <Empty icon="face" title="Nothing scanned yet">Upload a photo or capture one with the webcam. Each step of the pipeline appears here as it completes.</Empty>
-      </section>
-    );
-  }
+  if (!job) return <section className="card"><div className="empty">No scan yet</div></section>;
   const r = job.result || {};
   const st = job.steps || {};
   const id = job.id;
@@ -255,10 +233,7 @@ export default function Results({ job }) {
     <div className="results">
       {job.status === "failed" ? <Alert tone="red">{job.error}</Alert> : null}
       {job.status === "no_match" ? (
-        <Alert tone="amber">
-          <b>No candidate reached the face-match threshold ({thr}).</b> {r.best ? <>Best was {Number(r.best.similarity).toFixed(3)} on <a href={r.best.url} target="_blank" rel="noreferrer">{r.best.url}</a>. </> : null}
-          Try a clearer, front-facing photo, or lower the threshold in Advanced options.
-        </Alert>
+        <Alert tone="amber">No candidate above threshold {thr}{r.best ? <>. Best {Number(r.best.similarity).toFixed(3)}: <a href={r.best.url} target="_blank" rel="noreferrer">{r.best.url}</a></> : null}</Alert>
       ) : null}
       {q ? <ScanCard id={id} q={q} /> : null}
       {s ? <SearchCard s={s} /> : null}

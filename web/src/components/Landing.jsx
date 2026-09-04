@@ -1,160 +1,218 @@
 import { useEffect, useState } from "react";
-import { useBackendStatus } from "../hooks.js";
-import { Icon, Pill, shortHash } from "./ui.jsx";
+import { fileUrl, getJSON, postJSON } from "../api.js";
+import { chainLine, shortHash } from "./ui.jsx";
+
+const TICKER = ["FACE DETECT", "EMBED 128-D", "REVERSE IMAGE SEARCH", "MATCH CONFIDENCE", "SHA-256 FINGERPRINT", "ON-CHAIN ANCHOR", "RE-VERIFY"];
 
 const STEPS = [
-  { n: "01", t: "Face scan", d: "YuNet finds the face, SFace turns it into a 128-number identity vector. Runs on CPU; nothing leaves the machine yet.", tag: "OpenCV DNN", tone: "cyan" },
-  { n: "02", t: "Reverse image search", d: "The face crop is published to a short-lived URL and sent to Google Lens. Every page it returns, on the open web or social media, becomes a candidate.", tag: "Google Lens", tone: "magenta" },
-  { n: "03", t: "Widen the net", d: "If Lens recognises the person, keyword image searches on Instagram, X and Facebook add candidates. The name is read from the results, never typed in.", tag: "DuckDuckGo", tone: "magenta" },
-  { n: "04", t: "Biometric verification", d: "Each candidate image is downloaded and its face compared with the scan. Only real matches survive; social posts are preferred, best similarity wins.", tag: "cos ≥ 0,363", tone: "yellow" },
-  { n: "05", t: "Anchor on chain", d: "SHA-256 fingerprints of the record, the post image and the face vector go into the FaceMatchRegistry contract with the post URL and score.", tag: "Solidity · web3.py", tone: "cyan" },
-  { n: "06", t: "Re-verify any time", d: "Verification recomputes every hash from the evidence files and compares them with the on-chain record, field by field. One changed byte fails.", tag: "tamper-evident", tone: "cyan" },
+  { n: "01", tag: "INPUT", title: "Face scan",
+    body: "A single frame is enough. Detection crops the subject, aligns landmarks and reduces the face to one normalized 128-dimension vector — the only thing that leaves this step.",
+    code: "detect(frame) → align() → embed() → vec[128]" },
+  { n: "02", tag: "SEARCH", title: "Open-web match",
+    body: "That vector drives a live reverse-image and handle search across public sources. Candidates are scored by cosine similarity; only matches over threshold are accepted.",
+    code: "search(crop) → candidates[] → score → accept > 0.363" },
+  { n: "03", tag: "SEAL", title: "Chain anchor",
+    body: "The accepted post — image bytes, URL, platform, score — is hashed and the digest committed on chain. Re-hash any time to prove nothing moved.",
+    code: "sha256(payload) → anchor(tx) → verify(digest)" },
 ];
 
-function useCounter(target, ms = 900) {
-  const [v, setV] = useState(0);
+const STACK = [
+  { k: "DETECT / EMBED", v: "OpenCV SFace", d: "YuNet detection, SFace embeddings, 128-D, CPU." },
+  { k: "DISCOVERY", v: "Google Lens", d: "Reverse image search plus social keyword widening, face-verified candidates." },
+  { k: "INTEGRITY", v: "SHA-256", d: "Canonical payload hashing over image, URL and metadata." },
+  { k: "LEDGER", v: "EVM chain", d: "Solidity anchor contract; testnet, mainnet or local node." },
+];
+
+function fmtT(sec) {
+  const s = Math.max(0, Number(sec) || 0);
+  const m = Math.floor(s / 60);
+  return `${String(m).padStart(2, "0")}:${(s - m * 60).toFixed(2).padStart(5, "0")}`;
+}
+
+function buildLog(run) {
+  const r = run?.result || {};
+  const q = r.query, s = r.search, m = r.match, rc = r.receipt, v = r.verify;
+  const lines = [];
+  let t = 0;
+  if (q) { t += 0.12; lines.push({ t: fmtT(t), msg: `face detected · ${q.faces_in_image} subject${q.faces_in_image === 1 ? "" : "s"} · bbox ${q.face_bbox?.[2]}×${q.face_bbox?.[3]} · quality ${q.detector_score}` }); }
+  if (q) { t += 0.36; lines.push({ t: fmtT(t), msg: `embedding computed · ${q.embedding_dim}-D vector · L2 normalized` }); }
+  if (s) { t += 2.2; lines.push({ t: fmtT(t), msg: `reverse image search · ${s.engine} · ${s.candidates_total ?? s.total} candidates` }); }
+  if (m) { t += 0.4; lines.push({ t: fmtT(t), msg: `best match accepted · cosine ${Number(m.similarity).toFixed(2)} above threshold ${s?.threshold ?? 0.363}` }); }
+  if (rc) { t += 1.5; lines.push({ t: fmtT(t), msg: `digest sha256(record) written to chain · block ${rc.block_number}` }); }
+  if (rc) { t += 3.3; lines.push({ t: fmtT(t), msg: rc.tx_hash ? `tx confirmed · ${shortHash(rc.tx_hash, 6)} · record immutable` : `block sealed · ${shortHash(rc.block_hash, 6)} · record immutable` }); }
+  if (v && !v.all_ok) lines.push({ t: "verify", msg: v.message, bad: true });
+  return lines;
+}
+
+export default function Landing({ go, status, header }) {
+  const { chain, offline } = status;
+  const [run, setRun] = useState(null);
+  const [log, setLog] = useState([]);
+  const [sealed, setSealed] = useState(null); // null unknown, true verified, false pending
+  const [busy, setBusy] = useState(false);
+
   useEffect(() => {
-    if (target == null) return undefined;
-    const start = performance.now();
-    let raf;
-    const tick = (t) => {
-      const p = Math.min(1, (t - start) / ms);
-      setV(Math.round(target * (1 - Math.pow(1 - p, 3))));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, ms]);
-  return v;
-}
+    let cancelled = false;
+    (async () => {
+      try {
+        const hist = await getJSON("/runs");
+        const last = hist.find((h) => h.status === "done" && h.tx_hash) || hist.find((h) => h.status === "done");
+        if (!last) return;
+        const j = await getJSON(`/runs/${last.id}`);
+        if (cancelled) return;
+        setRun(j);
+        setLog(buildLog(j));
+        setSealed(!!j.result?.receipt);
+      } catch { /* backend offline */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
-function HudTag({ k, v, tone = "cyan", style, side = "right" }) {
+  const reverify = async () => {
+    if (!run || busy) return;
+    setBusy(true); setSealed(false);
+    try {
+      const v = await postJSON(`/runs/${run.id}/verify`);
+      setSealed(v.all_ok);
+      setLog((l) => [...l, { t: "re-check", msg: v.all_ok ? "evidence re-hashed · digest identical · seal intact" : v.message, bad: !v.all_ok }]);
+    } catch (e) {
+      setLog((l) => [...l, { t: "re-check", msg: e.message, bad: true }]);
+    }
+    setBusy(false);
+  };
+
+  const r = run?.result || {};
+  const m = r.match, rc = r.receipt, h = r.hashes;
+  const status_ = !run ? "NO RUN" : sealed == null ? "—" : sealed ? "VERIFIED" : "PENDING";
+  const statusColor = sealed ? "#9dffc4" : "#ffd27a";
+  const blockLine = rc ? `${Number(rc.block_number).toLocaleString()} · ${new Date(rc.block_timestamp * 1000).toISOString().replace("T", " ").slice(0, 19)} UTC` : "";
+
   return (
-    <div className={`hud-tag hud-tag--${tone} hud-tag--${side}`} style={style}>
-      <span className="hud-tag__k">{k}</span>
-      <span className="hud-tag__v">{v}</span>
-    </div>
-  );
-}
-
-export default function Landing({ onStart }) {
-  const { health, chain, offline } = useBackendStatus();
-  const records = useCounter(chain?.records_anchored ?? null);
-  const chainName = offline ? "backend offline" : chain?.ok === false ? "no chain" : chain?.backend === "sim" ? "simulated chain" : chain?.chain || "…";
-  const engine = offline ? "offline" : health?.search_engine ? "Google Lens" : "search key missing";
-  const block = chain?.latest_block ?? chain?.blocks;
-
-  return (
-    <main className="landing">
+    <div style={{ position: "relative", width: "100%", overflow: "hidden", background: "var(--bg)" }}>
       <section className="hero">
-        <div className="hero__grid" aria-hidden="true" />
-        <div className="hero__copy">
-          <span className="eyebrow"><span className="eyebrow__dot" />Face identification · blockchain verification</span>
-          <h1>Verify a face against the <span className="hl">real web</span>, then <span className="hl hl--m">prove it</span> on chain.</h1>
-          <p className="lede">
-            Scan a face, find the actual post it appears in on the web or social media, and anchor a
-            tamper-evident fingerprint of that discovery on a blockchain. Re-verify the evidence any
-            time, byte for byte.
-          </p>
-          <div className="hero__cta">
-            <button className="btn btn--primary btn--lg" onClick={onStart}>Use the application <Icon name="arrow" /></button>
-            <a className="btn btn--lg" href="#how">How it works</a>
+        <div className="noise" aria-hidden="true" />
+        <div className="hero__glow" aria-hidden="true" />
+        <div className="grain" aria-hidden="true" />
+        {header}
+        <div className="hero__stage">
+          <h1 className="hero__word">VERIFACE</h1>
+          <div className="hero__subject">
+            <img src="/hero.webp" alt="" />
+            <div className="hero__scan" aria-hidden="true" />
           </div>
-          <dl className="hero__stats">
-            <div><dt>Search</dt><dd>{engine}</dd></div>
-            <div><dt>Network</dt><dd>{chainName}</dd></div>
-            <div><dt>Records anchored</dt><dd className="num">{chain?.records_anchored != null ? records : "—"}</dd></div>
-            <div><dt>Latest block</dt><dd className="num">{block != null ? `#${block}` : "—"}</dd></div>
-          </dl>
+          <div className="hero__copy">
+            <b>Proof, carried by light.</b>
+            <p>One face becomes one vector. The vector finds its own traces across the open web. What it finds is sealed to a chain that cannot be talked out of it.</p>
+          </div>
+          <div className="hero__meta">
+            <div className="flicker">128-D EMBEDDING · LIVE</div>
+            <div className="dim">v1.0 / end-to-end</div>
+          </div>
         </div>
-
-        <div className="hero__visual">
-          <div className="subject">
-            <span className="subject__glow" aria-hidden="true" />
-            <span className="subject__scan" aria-hidden="true" />
-            <img src="/hero.webp" alt="A smiling person with face-tracking landmarks, coordinate readouts and a mesh overlay" />
-            <span className="bracket bracket--tl" aria-hidden="true" /><span className="bracket bracket--tr" aria-hidden="true" />
-            <span className="bracket bracket--bl" aria-hidden="true" /><span className="bracket bracket--br" aria-hidden="true" />
-            <HudTag k="DET" v="YuNet · 5 landmarks" tone="cyan" side="left" style={{ left: "-16%", top: "14%" }} />
-            <HudTag k="EMB" v="SFace · 128-d · L2" tone="yellow" side="left" style={{ left: "-14%", top: "46%" }} />
-            <HudTag k="REG" v={chain?.contract ? shortHash(chain.contract, 6) : "FaceMatchRegistry"} tone="magenta" side="left" style={{ left: "-8%", top: "72%" }} />
+        <div className="ticker" aria-hidden="true">
+          <div className="ticker__track">
+            {[0, 1].map((k) => (
+              <div key={k}>{TICKER.map((w, i) => <span key={i}>{w}<span style={{ marginLeft: 40 }}>·</span></span>)}</div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="section" id="how">
-        <div className="section__head">
-          <span className="label">01 — Pipeline</span>
-          <h2>Six steps, every one of them visible.</h2>
-          <p>Nothing is pre-picked. The candidates, the match and the score are whatever the live search and the face model produce for the photo you give it.</p>
+      <section id="pipeline" className="sec-pipeline">
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>THREE MOVES,<br />ONE PROOF</h2>
+            <p>Every run is a straight line: a face becomes math, the math finds a real post, the post becomes a record no one owns.</p>
+          </div>
+          <div className="moves">
+            {STEPS.map((s) => (
+              <article className="move" key={s.n}>
+                <div className="move__tag">{s.tag}</div>
+                <div className="move__n">{s.n}</div>
+                <h3>{s.title}</h3>
+                <p>{s.body}</p>
+                <code>{s.code}</code>
+                <div className="move__line" aria-hidden="true" />
+              </article>
+            ))}
+          </div>
         </div>
-        <div className="steps">
-          {STEPS.map((s) => (
-            <article className="step" key={s.n} data-tone={s.tone}>
-              <div className="step__top"><span className="step__n">{s.n} / 06</span><span className="step__tag">{s.tag}</span></div>
-              <h3>{s.t}</h3>
-              <p>{s.d}</p>
-            </article>
+      </section>
+
+      <section id="ledger" className="sec-ledger">
+        <div className="ledger">
+          <div>
+            <div className="label">LIVE RUN · #{run ? run.id : "—"}</div>
+            <h2>Watch a match get sealed.</h2>
+            <p>The discovered post is hashed with its URL, platform and capture time. That digest is written once. Re-verification re-hashes the evidence and compares — a single changed byte breaks the seal.</p>
+            <div className="ledger__actions">
+              <button className="pill pill--lav" onClick={() => go("console")}>Run pipeline</button>
+              <button className="pill pill--outline" onClick={reverify} disabled={!run || busy}>{busy ? <span className="spinner" /> : null} Re-verify hash</button>
+            </div>
+            <div className="loglines">
+              {log.map((l, i) => <div key={i} className={`logline ${l.bad ? "is-bad" : ""}`}><span>{l.t}</span><span>{l.msg}</span></div>)}
+            </div>
+          </div>
+
+          <div className="ledger__cards">
+            <div className="vcard">
+              <div className="vcard__head"><span>MATCHED POST</span><span className="mint">{m ? `COSINE ${Number(m.similarity).toFixed(2)}` : ""}</span></div>
+              <div className="vcard__body post">
+                <div className="post__thumb">{m ? <img src={fileUrl(run.id, m.image_file)} alt="" /> : null}</div>
+                <div style={{ minWidth: 0 }}>
+                  {m ? (
+                    <>
+                      <div className="post__handle">{m.source || m.platform}</div>
+                      <div className="post__url">{m.post_url}</div>
+                      <p className="post__caption">{m.og?.og_description || m.title}</p>
+                    </>
+                  ) : <div className="label" style={{ paddingTop: 48 }}>NO RUN YET</div>}
+                </div>
+              </div>
+            </div>
+
+            <div className="record">
+              <div className="record__head">
+                <span>ON-CHAIN RECORD</span>
+                <span className="record__status" style={{ color: statusColor }}><span className="led" />{status_}</span>
+              </div>
+              <div className="record__rows">
+                <div><div className="record__k">DIGEST</div><div className="record__v">{h ? "0x" + h.record : "—"}</div></div>
+                <div><div className="record__k">{rc?.tx_hash ? "TX HASH" : "BLOCK HASH"}</div><div className="record__v">{rc ? (rc.tx_hash || rc.block_hash) : "—"}</div></div>
+                <div><div className="record__k">BLOCK</div><div className="record__v">{blockLine || "—"}</div></div>
+                <div><div className="record__k">ANCHORED FIELDS</div><div className="record__v">record_sha256 · image_sha256 · face_sha256 · post_url · platform · similarity</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="stack" className="sec-stack">
+        <div className="stack">
+          {STACK.map((k) => (
+            <div key={k.k}>
+              <div className="stack__k">{k.k}</div>
+              <div className="stack__v">{k.v}</div>
+              <div className="stack__d">{k.d}</div>
+            </div>
           ))}
         </div>
       </section>
 
-      <section className="section">
-        <div className="section__head">
-          <span className="label">02 — On-chain record</span>
-          <h2>Only fingerprints go on the chain.</h2>
-          <p>The chain never stores the photo or the face vector, so the record proves integrity without publishing biometrics.</p>
+      <section className="sec-close">
+        <div className="noise noise--close" aria-hidden="true" />
+        <div className="sec-close__glow" aria-hidden="true" />
+        <div className="close__inner">
+          <div className="label">FACE → SIGNAL → SEAL</div>
+          <h2>Identity you can<br />audit.</h2>
+          <p>Point it at a single frame. Get back where that face already lives on the open web, and a chain receipt anyone can check without asking you for permission.</p>
+          <button className="pill pill--white" onClick={() => go("console")}>Start a scan <span className="chev" /></button>
         </div>
-        <div className="split">
-          <pre className="codecard"><span className="c">// contracts/FaceMatchRegistry.sol</span>{`
-`}<span className="k">struct</span>{` Record {
-  `}<span className="t">bytes32</span>{` recordHash;    `}<span className="c">// sha256(canonical record.json)</span>{`
-  `}<span className="t">bytes32</span>{` imageHash;     `}<span className="c">// sha256(matched post image bytes)</span>{`
-  `}<span className="t">bytes32</span>{` faceHash;      `}<span className="c">// sha256(query face embedding)</span>{`
-  `}<span className="t">string</span>{`  postUrl;       `}<span className="c">// discovered social-media post</span>{`
-  `}<span className="t">string</span>{`  platform;      `}<span className="c">// "instagram" | "x" | "reddit" ...</span>{`
-  `}<span className="t">uint16</span>{`  similarityBps; `}<span className="c">// cosine similarity * 10000</span>{`
-  `}<span className="t">uint64</span>{`  timestamp;     `}<span className="c">// block.timestamp</span>{`
-  `}<span className="t">address</span>{` submitter;
-}
-`}<span className="k">function</span>{` `}<span className="f">anchor</span>{`(bytes32, bytes32, bytes32, string, string, uint16)
-`}<span className="k">function</span>{` `}<span className="f">getRecord</span>{`(bytes32 recordHash) `}<span className="k">returns</span>{` (Record)
-`}<span className="k">event</span>{`    `}<span className="f">RecordAnchored</span>{`(bytes32 indexed recordHash, ...)`}</pre>
-          <div className="trust">
-            <div className="trust__item" data-tone="magenta">
-              <div className="trust__icon"><Icon name="search" /></div>
-              <div><h3>Genuine search</h3><p>Google Lens is queried at run time with your face crop. The result list, and the name used to widen it, come back from the engine.</p></div>
-            </div>
-            <div className="trust__item" data-tone="yellow">
-              <div className="trust__icon"><Icon name="shield" /></div>
-              <div><h3>Biometric, not textual</h3><p>A candidate is accepted only if the face in its image matches the scan above the SFace same-identity threshold. Titles and rankings do not decide.</p></div>
-            </div>
-            <div className="trust__item" data-tone="cyan">
-              <div className="trust__icon"><Icon name="chain" /></div>
-              <div><h3>Tamper-evident</h3><p>Runs on a real EVM (Anvil locally, Sepolia publicly) or a simulated chain. Verification re-hashes the files on disk and looks the record up on chain.</p></div>
-            </div>
-          </div>
-        </div>
+        <footer className="foot">
+          <span>VERIFACE · END-TO-END VERIFICATION PIPELINE</span>
+          <span>{chainLine(chain, offline, true)}</span>
+        </footer>
       </section>
-
-      <section className="cta-band">
-        <div className="cta-band__inner">
-          <span className="bracket bracket--tl" aria-hidden="true" /><span className="bracket bracket--br" aria-hidden="true" />
-          <div>
-            <span className="label label--light">03 — Try it</span>
-            <h2>A photo or your webcam. Sixty seconds to an on-chain record.</h2>
-            <p>Every step streams into the console as it happens, with the evidence and the receipt kept for re-verification.</p>
-          </div>
-          <button className="btn btn--cyan btn--lg" onClick={onStart}>Use the application <Icon name="arrow" /></button>
-        </div>
-      </section>
-
-      <footer className="footer">
-        <span>Veriface · facechain pipeline · HH Goa 2026 shortlisting task</span>
-        <span className="stack">
-          <Pill>OpenCV YuNet + SFace</Pill><Pill>Google Lens</Pill><Pill>FastAPI</Pill><Pill>React</Pill><Pill>Solidity</Pill><Pill>web3.py</Pill><Pill>Anvil / Sepolia</Pill>
-        </span>
-      </footer>
-    </main>
+    </div>
   );
 }

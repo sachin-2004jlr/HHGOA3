@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRun, del, getJSON } from "../api.js";
-import { useBackendStatus } from "../hooks.js";
 import InputPanel from "./InputPanel.jsx";
 import PipelineRail from "./PipelineRail.jsx";
 import Results from "./Results.jsx";
 import History from "./History.jsx";
-import { Alert, Icon, Pill, shortHash } from "./ui.jsx";
+import { Alert, Icon, Tag, shortHash } from "./ui.jsx";
 
-export default function Console() {
-  const { health, chain, offline, refreshChain } = useBackendStatus();
+export default function Console({ status, header }) {
+  const { health, chain, offline, refreshChain } = status;
   const [jobId, setJobId] = useState(null);
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
@@ -20,7 +19,6 @@ export default function Console() {
   }, []);
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  // deep link: #console?run=<id>
   useEffect(() => {
     const m = /run=([A-Za-z0-9_-]+)/.exec(window.location.hash);
     if (m) setJobId(m[1]);
@@ -41,7 +39,11 @@ export default function Console() {
         if (j.status === "queued" || j.status === "running") timer.current = setTimeout(tick, 700);
         else { loadHistory(); refreshChain(); }
       } catch (e) {
-        if (!cancelled) setError(e.message);
+        if (!cancelled) {
+          setError(e.message);
+          setJobId(null);
+          window.history.replaceState(null, "", "#console");
+        }
       }
     };
     tick();
@@ -69,52 +71,51 @@ export default function Console() {
     } catch (e) { setError(e.message); }
   };
 
-  const chainChip = offline ? <Pill tone="red" icon="chain">backend offline</Pill>
-    : !chain ? <Pill icon="chain">chain…</Pill>
-    : chain.ok === false ? <Pill tone="red" icon="chain">chain error</Pill>
-    : chain.backend === "evm" ? <Pill tone="indigo" icon="chain">{chain.chain} · {chain.contract ? shortHash(chain.contract, 6) : "no contract yet"} · {chain.records_anchored} records</Pill>
-    : <Pill tone="amber" icon="layers">simulated chain (no EVM node) · {chain.records_anchored} records</Pill>;
+  const chainTag = offline ? <Tag tone="rose">Chain offline</Tag>
+    : !chain ? <Tag>Chain</Tag>
+    : chain.ok === false ? <Tag tone="rose">Chain error</Tag>
+    : chain.backend === "evm" ? <Tag tone="lav">{chain.chain} · {chain.contract ? shortHash(chain.contract, 4) : "no contract"} · {chain.records_anchored} records</Tag>
+    : <Tag tone="amber">Simchain · {chain.records_anchored} records</Tag>;
+  const statusTag = !job ? <Tag>Idle</Tag>
+    : busy ? <Tag tone="lav"><span className="spinner" /> Running</Tag>
+    : job.status === "done" ? <Tag tone="mint"><span className="led" /> Done{job.elapsed ? ` · ${job.elapsed}s` : ""}</Tag>
+    : job.status === "no_match" ? <Tag tone="amber">No match</Tag>
+    : <Tag tone="rose">{job.status.replace("_", " ")}</Tag>;
 
   return (
     <>
+      <div className="console-bg" aria-hidden="true" />
+      {header}
       <div className="statusbar">
-        <span className={`dot ${offline ? "dot--off" : "dot--on"}`} aria-hidden="true" />
-        <Pill tone={health?.search_engine ? "teal" : "red"} icon="search">{health?.search_engine ? `Google Lens via ${health.search_engine.split("/")[0]}` : "no search key"}</Pill>
-        {chainChip}
-        {chain?.account ? <Pill icon="key">signer {shortHash(chain.account, 5)} · {Number(chain.balance_eth).toFixed(2)} ETH</Pill> : null}
+        <Tag tone={health?.search_engine ? "mint" : "rose"}><span className="led" /> {health?.search_engine ? `Google Lens · ${health.search_engine.split("/")[0]}` : "No search key"}</Tag>
+        {chainTag}
+        {chain?.account ? <Tag>Signer {shortHash(chain.account, 4)} · {Number(chain.balance_eth).toFixed(2)} ETH</Tag> : null}
         <span className="spacer" />
-        {job?.id ? <Pill icon="hash">run {job.id}</Pill> : null}
+        {job?.id ? <Tag>Run #{job.id}</Tag> : null}
       </div>
 
       <main className="console">
         <div className="col">
           <InputPanel busy={busy} disabled={offline || !health?.search_engine} onSubmit={onSubmit} />
           {error ? <Alert tone="red">{error}</Alert> : null}
-          {!offline && health && !health.search_engine ? (
-            <Alert tone="amber">No reverse-image search key configured. Add <code>SERPER_API_KEY</code> or <code>SERPAPI_KEY</code> to <code>.env</code> and restart.</Alert>
-          ) : null}
+          {!offline && health && !health.search_engine ? <Alert tone="amber"><code>SERPER_API_KEY</code> or <code>SERPAPI_KEY</code> missing in <code>.env</code></Alert> : null}
         </div>
 
         <div className="col">
           <section className="card">
-            <div className="card__head">
-              <h3><Icon name="zap" /> Pipeline</h3>
-              {job ? <Pill tone={busy ? "teal" : job.status === "done" ? "green" : job.status === "no_match" ? "amber" : "red"}>
-                {busy ? <span className="spinner" /> : null}{busy ? "running" : job.status.replace("_", " ")}{job.elapsed ? ` · ${job.elapsed}s` : ""}
-              </Pill> : <Pill>idle</Pill>}
-            </div>
+            <div className="card__head"><h3>Pipeline</h3>{statusTag}</div>
             <div className="card__body card__body--tight">
               <PipelineRail job={job} />
             </div>
           </section>
-          <Results job={job} onChanged={loadHistory} />
+          <Results job={job} />
         </div>
 
         <div className="col col--history">
           <section className="card">
             <div className="card__head">
-              <h3><Icon name="history" /> Previous runs</h3>
-              <button className="iconbtn" onClick={loadHistory} aria-label="refresh history"><Icon name="refresh" /></button>
+              <h3>Runs</h3>
+              <button className="iconbtn" onClick={loadHistory} aria-label="refresh"><Icon name="refresh" /></button>
             </div>
             <div className="card__body card__body--tight">
               <History items={history} activeId={jobId} onSelect={onSelect} onDelete={onDelete} busy={busy} />
