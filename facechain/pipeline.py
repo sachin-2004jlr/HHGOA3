@@ -49,7 +49,7 @@ class Options:
     face_index: int = 0
     image_url: Optional[str] = None  # already-public URL of the face (skips upload)
     skip_chain: bool = False
-    top_n: int = 25                # how many candidates to include in the result
+    top_n: int = 40                # how many candidates to include in the result
 
 
 STEP_TITLES = {
@@ -195,7 +195,7 @@ def run_pipeline(*, image_path: Optional[Path] = None, image_bytes: Optional[byt
             "passed": sum(1 for v in verified if v.similarity >= thr),
             "results": [v.to_public_dict() for v in verified[: options.top_n]]}
     result["scan"] = scan
-    match = choose_match(verified, thr)
+    match = choose_match(verified, thr, entity)
     if match is None:
         best = verified[0].to_public_dict() if verified else None
         bundle.save_json("record.json", {"status": "no_match", "search": {"engine": sr.engine, "entity_name": entity},

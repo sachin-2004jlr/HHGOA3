@@ -423,14 +423,42 @@ def verify_candidates(engine: FaceEngine, query_vec: np.ndarray, cands: list[Can
     return out
 
 
-def choose_match(verified: list[Verified], threshold: float) -> Optional[Verified]:
-    """Best social-media match above threshold; else best web match above threshold."""
+# 1 = photo networks (own or fan posts), 2 = video platforms (covers), 3 = re-pin / gallery sites, web last
+PLATFORM_TIER = {p: 1 for p in ("instagram", "x", "facebook", "threads", "reddit", "linkedin", "snapchat", "vk", "weibo")}
+PLATFORM_TIER.update({p: 2 for p in ("tiktok", "youtube")})
+PLATFORM_TIER.update({p: 3 for p in ("pinterest", "tumblr", "flickr", "imgur", "quora", "medium")})
+STRONG_MATCH = 0.5
+
+
+def _letters(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def own_account(v: Verified, entity: Optional[str]) -> bool:
+    """True when the post's handle looks like the identified person's own account."""
+    if not entity:
+        return False
+    e = _letters(entity)
+    handle = _letters(v.candidate.source.split("/")[-1]) if v.candidate.source else ""
+    return len(e) >= 5 and bool(handle) and (e in handle or handle in e)
+
+
+def choose_match(verified: list[Verified], threshold: float, entity: Optional[str] = None) -> Optional[Verified]:
+    """Above-threshold candidates only. Prefer confident matches on photo networks, then video
+    platforms, then re-pin sites, then the open web. Within a tier the person's own account wins,
+    then the highest similarity."""
     passing = [v for v in verified if v.similarity >= threshold]
     if not passing:
         return None
+    key = lambda v: (own_account(v, entity), v.similarity)  # noqa: E731
+    for tier in (1, 2, 3):
+        pool = [v for v in passing if PLATFORM_TIER.get(v.candidate.platform) == tier]
+        if pool:
+            best = max(pool, key=key)
+            if best.similarity >= STRONG_MATCH:
+                return best
     social = [v for v in passing if is_social(v.candidate.platform)]
-    pool = social or passing
-    return max(pool, key=lambda v: v.similarity)
+    return max(social or passing, key=key)
 
 
 # ------------------------------------------------------------- post metadata
