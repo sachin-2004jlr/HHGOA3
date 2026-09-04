@@ -1,186 +1,124 @@
-# facechain — Face Identification & Blockchain Verification
+<div align="center">
 
-> HH Goa 2026 · Shortlisting Task 3
+<img src="docs/landing.jpg" alt="Veriface" width="100%">
 
-A web application (plus CLI) that takes a **face scan** — an uploaded photo or a live webcam
-capture — **finds a real post on the web / social media** through a live reverse-image search,
-**verifies the match biometrically**, and **anchors a tamper-evident fingerprint of the discovery
-on a blockchain**. The evidence can be re-verified against the on-chain record at any time, and a
-built-in tamper test shows a single changed byte failing verification.
+# Veriface
 
-```
- face scan ──► detect + embed ──► reverse image search ──► download every candidate and
- (upload /     (YuNet + SFace,     (Google Lens, live)      compare its face with the scan
-  webcam)       OpenCV DNN)                                 (SFace cosine similarity)
-                                                                      │
-                                                                      ▼
- verify ◄─── read record back ◄─── anchor(recordHash, imageHash, faceHash, url, platform, sim)
- (any time)   from the chain        FaceMatchRegistry.sol on Anvil (local EVM), Sepolia, or a simulated chain
-```
+**A face scan → the real social media post it appears in → a tamper-evident record on a blockchain.**
 
-Nothing is pre-picked: the candidate list, the recognised name used to widen the search, the
-chosen post and its score are whatever the live engines and the face model return for the image
-you give it.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](#)
+[![React](https://img.shields.io/badge/React-18-20232A?logo=react&logoColor=61DAFB)](#)
+[![Solidity](https://img.shields.io/badge/Solidity-0.8-363636?logo=solidity&logoColor=white)](#)
+[![OpenCV](https://img.shields.io/badge/OpenCV-YuNet%20%2B%20SFace-5C3EE8?logo=opencv&logoColor=white)](#)
+[![License](https://img.shields.io/badge/License-MIT-d6a8ff)](LICENSE)
 
----
+*HH Goa 2026 · Shortlisting Task 3*
 
-## Quick start (one command)
+</div>
+
+<br>
+
+```mermaid<br/>flowchart LR<br/>    A([📷 Face scan]) --> B[Detect + encode\nYuNet · SFace 128-D]<br/>    B --> C[Reverse image search\nYandex · Google Lens]<br/>    C --> D[Face-check every candidate\nharvest Instagram · X · Facebook\nTikTok · LinkedIn · Pinterest]<br/>    D --> E([✅ Matching post])<br/>    E --> F[SHA-256 digests\nrecord · image · face]<br/>    F --> G[(⛓ FaceMatchRegistry\nAnvil / Sepolia)]<br/>    G --> H([🔍 Re-verify any time])<br/>```
+
+<br>
+
+## Run it
 
 ```bash
-git clone https://github.com/sachin-2004jlr/HHGOA3.git
-cd HHGOA3
-
-python -m venv .venv
-.venv\Scripts\activate            # Windows        (Linux/macOS: source .venv/bin/activate)
-pip install -r requirements.txt
-
-npm run setup                     # installs the launcher + the React frontend
-cp .env.example .env              # optional: SERPER_API_KEY (or SERPAPI_KEY) adds Google Lens
-python scripts/get_anvil.py       # optional: local EVM node (otherwise a simulated chain is used)
-
-npm run dev
+git clone https://github.com/sachin-2004jlr/HHGOA3.git && cd HHGOA3
+python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt   # Linux/macOS: source .venv/bin/activate
+npm run setup && cp .env.example .env      # keys in .env are optional (see below)
+npm run dev                                # starts Anvil + API + web on free ports and opens the browser
 ```
 
-`npm run dev` starts **everything concurrently**: the Anvil EVM node (if installed), the FastAPI
-backend and the Vite frontend. It picks free ports automatically (never 5173; defaults are
-`4300` for the app and `8010` for the API), prints the URL and opens the browser:
+Drop a photo or use the webcam, press **Run a scan**, watch the three stages complete.
 
-```
-  facechain  ->  http://localhost:4300     api: http://127.0.0.1:8010/docs
-```
+<br>
 
-The landing page (Veriface) opens first; **Run a scan** in the header switches into the console,
-and **Overview** in the console header returns.
+## How it works
 
-### Using the console
+<table>
+<tr>
+<td width="33%" valign="top">
 
-1. **Input** — drop a photo, or switch to *Webcam*, allow the camera and press *Capture*, then **Run a scan**.
-2. The **Pipeline** rail shows the three stages live, with timings and an event log: face scan,
-   web / social media search, blockchain upload and verification.
-3. Three result cards follow: **Face scan** (detected face, aligned crop, embedding hash),
-   **Matching social media post** (your scan next to the found post, cosine similarity, link,
-   which engines ran, who the face was identified as, how many candidates were face-checked) and
-   **Blockchain record** (the three SHA-256 digests, contract, transaction and block).
-4. **Re-verify against chain** recomputes the hashes from the evidence files and compares them with
-   the on-chain record field by field. **Tamper test** edits one field in a copy of the evidence and
-   shows verification failing.
-5. **Runs** lists every run kept in `evidence/`; click one to load it, or delete it.
+### 1 · Face scan
+The photo or webcam frame goes through **YuNet** (detection) and **SFace** (encoding). The face becomes a 128-number vector that is hashed, never published.
 
----
+</td>
+<td width="33%" valign="top">
 
-## What happens, step by step
+### 2 · Find the post
+A tight face crop is sent to **Yandex** and **Google Lens**. Every page they return is downloaded and its face compared with the scan. The person's name is read only from pages whose face matched, then **Apify** harvests their pictures from Instagram, X, Facebook, TikTok, LinkedIn and Google Images, plus Pinterest. All of it is face-checked; the best first-party post wins.
 
-| Step | What happens | Code |
-|-----:|--------------|------|
-| 1 | **Face scan.** *YuNet* detects faces; the largest is aligned and encoded by *SFace* into a 128-d embedding (OpenCV Model Zoo, CPU). | `facechain/face.py` |
-| 2 | **Web / social search.** A tight face crop and the whole photo are uploaded to a short-lived anonymous image host (reverse-image engines need a URL). **Yandex reverse image search** (no key; it matches faces and often names the person) gets the crop, and **Google Lens** through Serper.dev or SerpApi (optional key; Lens does not identify people, so it only helps when the photo is already spread around the web) gets every view. Every returned page is a candidate. | `facechain/search.py`, `facechain/uploader.py` |
-| 3 | **Biometric verification.** Every candidate image is downloaded and each face in it is compared with the scan by cosine similarity. Below OpenCV's same-identity threshold (0.363) a candidate is rejected. The person's name is then read from the titles of pages whose face matched (falling back to the engine's own guess). With that name, **Apify actors harvest their pictures from Instagram, X, Facebook (official page posts), TikTok, LinkedIn (profile photos and post images) and Google Images**, DuckDuckGo adds Pinterest and keyword hits, and every one of those pictures is face-checked too. Social-media posts are preferred and the highest similarity wins. | `facechain/search.py`, `facechain/pipeline.py` |
-| 4 | **Evidence record.** `evidence/<run_id>/` holds the input, the face crop, the embedding, the downloaded post image, every candidate with its score and `record.json`. Fingerprints: `recordHash` = SHA-256 of the canonical record, `imageHash` = SHA-256 of the post image bytes, `faceHash` = SHA-256 of the embedding. | `facechain/evidence.py` |
-| 5 | **Blockchain anchoring.** `anchor(...)` on the `FaceMatchRegistry` contract stores the three hashes, the post URL, the platform and the similarity. The receipt (tx hash, block, contract) is saved next to the evidence. | `contracts/FaceMatchRegistry.sol`, `facechain/chain/evm.py` |
-| 6 | **Re-verification.** Hashes are recomputed from the files on disk, `getRecord(recordHash)` is read from the contract and compared field by field. | `facechain/verify.py` |
+</td>
+<td width="33%" valign="top">
 
-The whole flow lives in `facechain/pipeline.py`, which emits structured progress events consumed
-both by the web backend (`server/app.py`) and the CLI.
+### 3 · Seal it on chain
+SHA-256 digests of the record, the post image and the face vector are written to the **FaceMatchRegistry** contract with the post URL, platform and score. **Re-verify** recomputes every hash from disk and compares it with the chain; **Tamper test** changes one byte and shows it fail.
 
----
+</td>
+</tr>
+</table>
 
-## Which blockchain
+Nothing is pre-picked: candidates, the identified name, the chosen post and its score come from live searches and the face model at run time.
 
-The same Solidity contract is used everywhere; only the RPC endpoint changes. The backend picks
-the chain automatically: an EVM node if one is reachable, otherwise the simulated chain.
+<br>
 
-| Backend | How | When |
-|---------|-----|------|
-| **Anvil (Foundry) local EVM** — default when installed | A real EVM node on `http://127.0.0.1:8545` (chain id 31337) started by `npm run dev`, state persisted in `.anvil/state.json` so records survive restarts. The contract is auto-deployed and the signer auto-funded. | Offline demo, no faucet needed. |
-| **Ethereum Sepolia** (or any EVM chain) | Set `RPC_URL` to a Sepolia endpoint and `PRIVATE_KEY` to a funded test wallet (`python scripts/new_wallet.py`), run `python -m facechain deploy` once. Receipts then carry Etherscan links. | Public, independently verifiable records. |
-| **Simulated chain** | Proof-of-work blocks in `simchain.json`, hash links validated on every verify. No node, no dependencies. | Fallback when no EVM node is available. |
+<div align="center">
+<img src="docs/console.jpg" alt="Console: pipeline, face scan and matching post" width="92%">
+<br><br>
+<img src="docs/verify.jpg" alt="Blockchain record, re-verification and tamper test" width="60%">
+</div>
+
+<br>
+
+## The blockchain
+
+| Backend | What | When |
+|---|---|---|
+| **Anvil** (default) | Real local EVM node, started by `npm run dev`, state kept in `.anvil/` | Offline demo, no faucet |
+| **Ethereum Sepolia** | Set `RPC_URL` + a funded `PRIVATE_KEY` in `.env`, run `python -m facechain deploy` | Public, Etherscan links |
+| **Simulated chain** | Proof-of-work blocks in `simchain.json` | No node at all |
 
 ```solidity
-struct Record {
-    bytes32 recordHash;    // sha256(canonical record.json)
-    bytes32 imageHash;     // sha256(matched post image bytes)
-    bytes32 faceHash;      // sha256(query face embedding)
-    string  postUrl;       // discovered social-media post
-    string  platform;      // "instagram" | "x" | "reddit" | ...
-    uint16  similarityBps; // cosine similarity * 10000
-    uint64  timestamp;     // block.timestamp
-    address submitter;
-}
-function anchor(bytes32, bytes32, bytes32, string calldata, string calldata, uint16) external;
+struct Record { bytes32 recordHash; bytes32 imageHash; bytes32 faceHash;
+                string postUrl; string platform; uint16 similarityBps;
+                uint64 timestamp; address submitter; }
+function anchor(bytes32, bytes32, bytes32, string, string, uint16) external;
 function getRecord(bytes32 recordHash) external view returns (Record memory);
 ```
 
-`anchor` reverts with `AlreadyAnchored` for a duplicate record hash. The compiled ABI + bytecode
-are committed in `contracts/build/`, so no Solidity toolchain is needed to run.
+<br>
 
----
+## Keys (all optional)
 
-## Commands
+| `.env` | Adds |
+|---|---|
+| `APIFY_TOKEN` | Social harvest: Instagram, X, Facebook, TikTok, LinkedIn, Google Images ([apify.com](https://apify.com), free plan) |
+| `SERPER_API_KEY` or `SERPAPI_KEY` | Google Lens next to Yandex ([serper.dev](https://serper.dev) / [serpapi.com](https://serpapi.com)) |
+| `RPC_URL` + `PRIVATE_KEY` | A public chain instead of local Anvil |
 
-| Command | What it does |
-|---------|--------------|
-| `npm run dev` | Start Anvil + API + frontend with free-port detection, open the browser |
-| `npm run build && npm start` | Build the frontend and serve it from the API on one port (`API_PORT`, default 8010) |
-| `npm test` | Unit tests (hashing, platform classification, match selection, simulated chain) |
-| `python -m facechain run --image photo.jpg` | The same pipeline from the terminal (`--webcam` for a live scan) |
-| `python -m facechain verify --evidence evidence/<run_id>` | Re-verify a run against the chain |
-| `python -m facechain tamper-demo --evidence evidence/<run_id>` | Tamper a copy and show verification failing |
-| `python -m facechain chain-info` | Node, contract and record count |
+<br>
 
-REST API (used by the frontend): `POST /api/runs` (multipart image) starts a run, `GET /api/runs/{id}`
-streams its state, `POST /api/runs/{id}/verify` and `/tamper`, `GET /api/runs` for history,
-`GET /api/chain`. Interactive docs at `/docs`.
+## Also from the terminal
 
----
-
-## Repository layout
-
-```
-web/                  React + Vite frontend (Veriface landing page + console, dark theme)
-server/app.py         FastAPI backend: jobs, evidence files, verify/tamper, history
-scripts/dev.js        one-command launcher (free ports, Anvil + API + web)
-facechain/            Python package
-  pipeline.py         the six-step pipeline with progress events
-  face.py             YuNet detection + SFace embedding, webcam capture
-  search.py           Google Lens (Serper / SerpApi), DuckDuckGo widening, face-verified ranking
-  social.py           Apify actors (Instagram, X, Facebook, TikTok, LinkedIn, Google Images) + DuckDuckGo Pinterest
-  uploader.py         temporary public hosting of the face crop
-  evidence.py         evidence bundle, canonical JSON, SHA-256
-  verify.py           re-verification + tamper copy
-  chain/evm.py        web3.py client (Anvil, Sepolia, any EVM)
-  chain/simchain.py   pure-Python proof-of-work chain
-  cli.py              terminal interface
-contracts/            FaceMatchRegistry.sol + compiled artifact + compile.py
-evidence/             one folder per run (ignored by git)
+```bash
+python -m facechain run --image photo.jpg                     # or --webcam
+python -m facechain verify --evidence evidence/<run_id>
+python -m facechain tamper-demo --evidence evidence/<run_id>
 ```
 
-Configuration lives in `.env` (see `.env.example`): search key, thresholds, `RPC_URL`,
-`PRIVATE_KEY`, `CHAIN_BACKEND`.
+<br>
 
----
+## Limits
 
-## Known limitations
+- Search only finds people who exist on the public web; private faces return no match.
+- Yandex is read from its public results page and may rate-limit; Google Lens does not identify people by design.
+- The chain stores hashes, not content: it proves the evidence is unchanged, not that the post still exists.
+- Built for a hackathon task. Face search can be misused; do not run it on people who have not consented.
 
-* **Search coverage depends on the engines.** Yandex reverse image search is scraped from its
-  public results page (no API, so it can rate-limit or change), and Google Lens by design does
-  not identify people. Results depend on how well the person is indexed: public figures work
-  well, private individuals usually return nothing.
-* **The face crop is uploaded to a temporary public host** (uguu.se / tmpfiles.org, expiring in
-  1–3 hours) so that Google Lens can fetch it.
-* **Social platforms block scrapers**, so post content comes from the search engines and the Apify
-  actors (image, URL, caption, author) plus Open Graph tags when the page is fetchable, not a full
-  page scrape. Apify runs cost credits: roughly a few cents per run on the free plan's $5/month.
-* **Accuracy.** SFace is a compact model; the 0.363 cosine threshold gives good precision, but
-  small thumbnails, sunglasses or strong pose changes can push true matches below it. The
-  threshold is adjustable in the console and every candidate's score is shown.
-* **Local chain by default.** Anvil is a real EVM but local; records are as permanent as
-  `.anvil/state.json`. Use Sepolia for records others can verify independently.
-* **The chain stores hashes, not content.** Verification proves the evidence you hold is exactly
-  what was anchored; the original post can still be deleted by its author.
-* **One run at a time.** The backend queues runs so the face models and the chain nonce stay
-  consistent; a typical run takes 20–70 s depending on how many candidate images are fetched.
+<br>
 
-## Ethics
-
-Built for a hackathon shortlisting task. Face search can be misused; do not run it on people who
-have not consented.
+<div align="center">
+<sub>OpenCV · Yandex · Google Lens · Apify · FastAPI · React · Solidity · web3.py · Anvil</sub>
+</div>
