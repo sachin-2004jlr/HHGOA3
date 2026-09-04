@@ -94,7 +94,7 @@ h1, h2, h3, h4, p { margin: 0; }
 .hero { position: relative; min-height: 100svh; overflow: hidden; padding: 0 var(--pad); }
 .hero__glow { position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 42%, rgba(150, 84, 255, 0.55) 0%, rgba(84, 36, 150, 0.42) 38%, rgba(12, 7, 20, 0.92) 78%), linear-gradient(180deg, rgba(10, 7, 16, 0.55), rgba(10, 7, 16, 0) 30%, rgba(10, 7, 16, 0.95)); pointer-events: none; }
 .hero__stage { position: relative; z-index: 2; display: grid; place-items: center; min-height: calc(100svh - 96px); }
-.hero__word { position: relative; width: 100%; margin: 0; text-align: center; font-size: clamp(72px, 15.5vw, 260px); font-weight: 900; line-height: 0.86; letter-spacing: -0.03em; color: var(--ink-dark); text-shadow: 0 0 90px rgba(126, 58, 255, 0.55); animation: vf-word 1.6s 0.15s both cubic-bezier(0.16, 1, 0.3, 1); user-select: none; }
+.hero__word { position: absolute; top: 12%; left: 0; right: 0; margin: 0; text-align: center; font-size: clamp(72px, 15.5vw, 260px); font-weight: 900; line-height: 0.86; letter-spacing: -0.03em; color: var(--ink-dark); text-shadow: 0 0 90px rgba(126, 58, 255, 0.55); animation: vf-word 1.6s 0.15s both cubic-bezier(0.16, 1, 0.3, 1); user-select: none; }
 .hero__copy { position: absolute; left: 0; bottom: 12%; max-width: 300px; z-index: 4; animation: vf-rise 1s 0.8s both; }
 .hero__copy b { display: block; font-size: 13px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 16px; }
 .hero__copy p { font-family: var(--mono); font-size: 12.5px; line-height: 1.8; color: rgba(242, 236, 247, 0.78); text-wrap: pretty; }
