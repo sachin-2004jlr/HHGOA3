@@ -1,19 +1,6 @@
 """Blockchain backends: evm (any EVM JSON-RPC: Anvil, Sepolia, ...) and sim (pure Python)."""
 from __future__ import annotations
 
-from typing import Protocol
-
-
-class ChainBackend(Protocol):
-    name: str
-
-    def anchor(self, *, record_hash: str, image_hash: str, face_hash: str, post_url: str,
-               platform: str, similarity: float) -> dict: ...
-
-    def get_record(self, record_hash: str) -> dict | None: ...
-
-    def info(self) -> dict: ...
-
 
 def get_backend(kind: str | None = None):
     from .. import config

@@ -7,7 +7,6 @@
     "setup": "npm install && npm --prefix web install",
     "dev": "node scripts/dev.js",
     "build": "npm --prefix web run build",
-    "start": "node scripts/start.js",
     "test": "python -m unittest discover -s tests -v"
   },
   "devDependencies": {

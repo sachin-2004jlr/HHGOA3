@@ -111,11 +111,6 @@ def _serpapi_query(image_url: str, search_type: str) -> dict:
 
 def _serpapi_lens(image_url: str) -> tuple[list[Candidate], Optional[str], int]:
     responses = [("visual", _serpapi_query(image_url, "all"))]
-    if config.LENS_EXACT_MATCHES:
-        try:
-            responses.append(("exact", _serpapi_query(image_url, "exact_matches")))
-        except SearchError as e:  # exact-match query is optional
-            print(f"[search] exact_matches query skipped: {e}")
 
     cands: list[Candidate] = []
     name = None
@@ -235,9 +230,6 @@ def available_engines() -> list[str]:
     return engines
 
 
-def pick_engine() -> str:
-    return "+".join(available_engines())
-
 
 def _clean_url(u: str) -> str:
     u = re.sub(r"[?&]utm_[a-z]+=[^&#]*", "", u or "")
@@ -293,9 +285,6 @@ def reverse_image_search_many(image_urls: list[str]) -> SearchResult:
     return SearchResult(engine="+".join(e for e in order if e in results), query_image_url=image_urls[0],
                         candidates=cands, entity_name=name, raw_count=raw)
 
-
-def reverse_image_search(image_url: str) -> SearchResult:
-    return reverse_image_search_many([image_url])
 
 
 # ------------------------------------------------------------- entity guessing

@@ -11,10 +11,8 @@ facechain/models/*.onnx
 tools/
 .anvil/
 simchain.json
-evidence/*
-!evidence/.gitkeep
-!evidence/demo-*/
-*-tampered/
+evidence/
+deployments.json
 samples/*_faces.jpg
 
 # web

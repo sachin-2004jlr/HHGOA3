@@ -4,7 +4,7 @@
     python -m facechain run --webcam                 # live face scan
     python -m facechain verify --evidence evidence/<run_id>
     python -m facechain tamper-demo --evidence evidence/<run_id>
-    python -m facechain deploy | chain-info | face --image X
+    python -m facechain deploy | chain-info
 """
 from __future__ import annotations
 
@@ -206,23 +206,6 @@ def cmd_chain_info(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_face(args: argparse.Namespace) -> int:
-    from .face import FaceEngine, draw_faces, encode_jpeg
-
-    engine = FaceEngine()
-    img, faces = engine.analyze(engine.load_image(args.image))
-    console.print(f"faces detected: {len(faces)}")
-    for i, f in enumerate(faces):
-        console.print(f"  #{i} bbox={f.bbox} score={f.score:.3f}")
-    out = Path(args.image).with_name(Path(args.image).stem + "_faces.jpg")
-    out.write_bytes(encode_jpeg(draw_faces(img, faces)))
-    console.print(f"annotated image -> {out}")
-    if args.compare:
-        _, faces2 = engine.analyze(engine.load_image(args.compare))
-        if faces2 and faces:
-            console.print(f"similarity = {engine.similarity(faces[0].embedding, faces2[0].embedding):.4f}")
-    return 0
-
 
 # ============================================================================= main
 def build_parser() -> argparse.ArgumentParser:
@@ -267,10 +250,6 @@ def build_parser() -> argparse.ArgumentParser:
     chain_opt(ci)
     ci.set_defaults(func=cmd_chain_info)
 
-    f = sub.add_parser("face", help="debug: detect + embed faces in an image")
-    f.add_argument("--image", required=True)
-    f.add_argument("--compare")
-    f.set_defaults(func=cmd_face)
     return p
 
 

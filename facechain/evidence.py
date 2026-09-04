@@ -98,10 +98,6 @@ class EvidenceBundle:
         self.save_json("record.json", record)
         return record_hash(record)
 
-    # ------------------------------------------------------------- reading
-    @staticmethod
-    def load(path: Path) -> "LoadedBundle":
-        return LoadedBundle(Path(path))
 
 
 def record_hash(record: dict) -> str:
