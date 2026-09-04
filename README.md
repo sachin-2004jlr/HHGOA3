@@ -18,7 +18,16 @@
 
 <br>
 
-```mermaid<br/>flowchart LR<br/>    A([📷 Face scan]) --> B[Detect + encode\nYuNet · SFace 128-D]<br/>    B --> C[Reverse image search\nYandex · Google Lens]<br/>    C --> D[Face-check every candidate\nharvest Instagram · X · Facebook\nTikTok · LinkedIn · Pinterest]<br/>    D --> E([✅ Matching post])<br/>    E --> F[SHA-256 digests\nrecord · image · face]<br/>    F --> G[(⛓ FaceMatchRegistry\nAnvil / Sepolia)]<br/>    G --> H([🔍 Re-verify any time])<br/>```
+```mermaid
+flowchart LR
+    A([📷 Face scan]) --> B[Detect + encode<br/>YuNet · SFace 128-D]
+    B --> C[Reverse image search<br/>Yandex · Google Lens]
+    C --> D[Face-check every candidate<br/>harvest Instagram · X · Facebook<br/>TikTok · LinkedIn · Pinterest]
+    D --> E([✅ Matching post])
+    E --> F[SHA-256 digests<br/>record · image · face]
+    F --> G[(⛓ FaceMatchRegistry<br/>Anvil / Sepolia)]
+    G --> H([🔍 Re-verify any time])
+```
 
 <br>
 
