@@ -121,7 +121,8 @@ def _render_step(step: int, d: dict | None) -> None:
         console.print(t)
         m = d.get("match")
         if m:
-            console.print(Panel(f"[bold green]MATCH[/] similarity={m['similarity']} platform=[magenta]{m['platform']}[/]\n"
+            console.print(Panel(
+                f"[bold green]MATCH[/] similarity={m['similarity']} platform=[magenta]{m['platform']}[/]\n"
                                 f"[bold]{m['title']}[/]\n{m['post_url']}", title="Discovered social-media post",
                                 border_style="green"))
     elif step == 4:
@@ -172,7 +173,8 @@ def cmd_tamper_demo(args: argparse.Namespace) -> int:
 
     info = tamper_copy(args.evidence)
     console.print(Panel(f"copied bundle to [bold]{info['dir']}[/] and changed {info['field']}\n"
-                        f"  from  {info['before']}\n  to    {info['after']}", title="tamper demo", border_style="yellow"))
+                        f"  from  {info['before']}\n  to    {info['after']}",
+                        title="tamper demo", border_style="yellow"))
     v = verify_bundle(info["dir"], args.chain)
     _render_verify(v)
     if v["all_ok"]:
@@ -224,7 +226,8 @@ def cmd_face(args: argparse.Namespace) -> int:
 
 # ============================================================================= main
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="facechain", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(prog="facechain", description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--version", action="version", version=f"facechain {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 

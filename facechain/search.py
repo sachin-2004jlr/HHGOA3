@@ -404,7 +404,7 @@ def _verify_one(engine: FaceEngine, query_vec: np.ndarray, cand: Candidate) -> O
 
 
 def verify_candidates(engine: FaceEngine, query_vec: np.ndarray, cands: list[Candidate],
-                      max_n: int = 60, workers: int = 8, progress=None) -> list[Verified]:
+                      max_n: int = 60, workers: int = 12, progress=None) -> list[Verified]:
     """Download + face-compare candidates concurrently. Returns all that decoded."""
     cands = cands[:max_n]
     out: list[Verified] = []
@@ -424,7 +424,8 @@ def verify_candidates(engine: FaceEngine, query_vec: np.ndarray, cands: list[Can
 
 
 # 1 = photo networks (own or fan posts), 2 = video platforms (covers), 3 = re-pin / gallery sites, web last
-PLATFORM_TIER = {p: 1 for p in ("instagram", "x", "facebook", "threads", "reddit", "linkedin", "snapchat", "vk", "weibo")}
+PLATFORM_TIER = {p: 1 for p in ("instagram", "x", "facebook", "threads", "reddit", "linkedin", "snapchat",
+                                "vk", "weibo")}
 PLATFORM_TIER.update({p: 2 for p in ("tiktok", "youtube")})
 PLATFORM_TIER.update({p: 3 for p in ("pinterest", "tumblr", "flickr", "imgur", "quora", "medium")})
 STRONG_MATCH = 0.5

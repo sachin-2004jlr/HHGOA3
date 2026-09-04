@@ -1,6 +1,5 @@
 """Fast unit tests (no network, no chain node):  python -m unittest -v"""
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path

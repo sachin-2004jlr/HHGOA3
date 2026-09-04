@@ -44,6 +44,16 @@ function PostCard({ id, q, s, m, scan, thr }) {
           {m.source ? <Tag>{m.source}</Tag> : null}
         </div>
       </div>
+      {scan?.results?.length ? (
+        <div className="strip" style={{ marginTop: 18 }}>
+          {scan.results.filter((v) => v.similarity >= thr && (v.thumbnail_url || v.fetched_url)).slice(0, 10).map((v, i) => (
+            <a key={v.url + i} className="strip__item" href={v.url} target="_blank" rel="noreferrer" title={`${v.similarity.toFixed(3)} · ${v.title || v.url}`}>
+              <img src={v.thumbnail_url || v.fetched_url} alt="" loading="lazy" referrerPolicy="no-referrer" />
+              <span>{v.similarity.toFixed(2)}</span>
+            </a>
+          ))}
+        </div>
+      ) : null}
       {s ? (
         <div className="stats" style={{ marginTop: 18 }}>
           <div className="stat"><small>Search</small><b className="small">{engineLabel(s.engine)}</b></div>

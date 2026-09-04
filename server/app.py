@@ -49,7 +49,8 @@ _jobs_lock = threading.Lock()
 _engine = None
 _engine_lock = threading.Lock()
 
-ALLOWED_FILES = {"query.jpg", "query_annotated.jpg", "query_crop.jpg", "query_search.jpg", "query_face.jpg", "record.json",
+ALLOWED_FILES = {"query.jpg", "query_annotated.jpg", "query_crop.jpg", "query_search.jpg", "query_face.jpg",
+                 "record.json",
                  "candidates.json", "chain_receipt.json", "query_embedding.json"}
 MAX_UPLOAD = 15 * 1024 * 1024
 
@@ -147,7 +148,8 @@ def _history_from_disk() -> list[dict]:
         receipt = json.loads(receipt_path.read_text(encoding="utf-8")) if receipt_path.exists() else None
         match = rec.get("match") or {}
         items.append({
-            "id": d.name, "created_at": rec.get("created_at"), "status": rec.get("status", "done" if receipt else "unanchored"),
+            "id": d.name, "created_at": rec.get("created_at"),
+            "status": rec.get("status", "done" if receipt else "unanchored"),
             "platform": match.get("platform"), "post_url": match.get("post_url"), "title": match.get("title"),
             "similarity": match.get("similarity"), "record_hash": ev.record_hash(rec) if "match" in rec else None,
             "chain": (receipt or {}).get("chain"), "tx_hash": (receipt or {}).get("tx_hash"),
@@ -160,7 +162,7 @@ def _history_from_disk() -> list[dict]:
 @app.get("/api/health")
 def health():
     return {"ok": True, "version": __version__, "search_engine": _search_engine_name(),
-            "social": "apify" if config.APIFY_TOKEN else None, "time": ev.now_iso()}
+            "time": ev.now_iso()}
 
 
 def _search_engine_name() -> Optional[str]:
@@ -239,7 +241,8 @@ def get_run(run_id: str):
         "search": {**rec.get("search", {}), "unique_pages": rec.get("search", {}).get("lens_results"),
                    "total": rec.get("search", {}).get("candidates_total"), "candidates": []},
         "scan": {"threshold": rec.get("search", {}).get("threshold"), "checked": len(cands),
-                 "passed": sum(1 for c in cands if c.get("similarity", -1) >= rec.get("search", {}).get("threshold", 1)),
+                 "passed": sum(1 for c in cands
+                               if c.get("similarity", -1) >= rec.get("search", {}).get("threshold", 1)),
                  "results": cands[:25]},
         "match": match, "receipt": receipt, "restored": True,
     }
